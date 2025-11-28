@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KrishiGPT - AI कृषि सलाहकार 🌾</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts - Noto Sans Devanagari for Hindi/Marathi -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        * {
+            font-family: 'Noto Sans Devanagari', sans-serif;
+        }
+        
+        /* Chat container height */
+        .chat-container {
+            height: calc(100vh - 280px);
+            min-height: 300px;
+        }
+        
+        /* Message bubbles */
+        .message {
+            max-width: 85%;
+            animation: fadeIn 0.3s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .user-message {
+            background: linear-gradient(135deg, #dcf8c6 0%, #c5f0a4 100%);
+            border-radius: 18px 18px 4px 18px;
+        }
+        
+        .bot-message {
+            background: #ffffff;
+            border-radius: 18px 18px 18px 4px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+        
+        /* Typing indicator */
+        .typing-indicator {
+            display: none;
+        }
+        
+        .typing-indicator.show {
+            display: flex;
+        }
+        
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            background-color: #10b981;
+            border-radius: 50%;
+            animation: typing 1.4s infinite ease-in-out;
+        }
+        
+        .typing-dot:nth-child(1) { animation-delay: 0s; }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        
+        @keyframes typing {
+            0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+            30% { transform: translateY(-8px); opacity: 1; }
+        }
+        
+        /* Quick button hover effect */
+        .quick-btn {
+            transition: all 0.2s ease;
+        }
+        
+        .quick-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        /* Scrollbar styling */
+        .chat-container::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .chat-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+        
+        .chat-container::-webkit-scrollbar-thumb {
+            background: #10b981;
+            border-radius: 3px;
+        }
+        
+        /* Mobile responsive */
+        @media (max-width: 640px) {
+            .chat-container {
+                height: calc(100vh - 320px);
+            }
+            
+            .message {
+                max-width: 90%;
+            }
+        }
+        
+        /* Format AI response */
+        .bot-message p {
+            margin-bottom: 0.5rem;
+        }
+        
+        .bot-message strong {
+            color: #059669;
+        }
+        
+        /* Preserve whitespace and formatting */
+        .response-text {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-green-50 to-emerald-100 min-h-screen">
+    
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-green-600 to-emerald-600 text-white py-4 px-4 shadow-lg">
+        <div class="max-w-4xl mx-auto flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="text-4xl">🌾</div>
+                <div>
+                    <h1 class="text-xl md:text-2xl font-bold">KrishiGPT</h1>
+                    <p class="text-xs md:text-sm text-green-200">AI कृषि सलाहकार | किसानों का मित्र</p>
+                </div>
+            </div>
+            <button 
+                onclick="clearChat()" 
+                class="bg-green-700 hover:bg-green-800 px-3 py-2 rounded-lg text-sm font-medium transition flex items-center space-x-1"
+            >
+                <span>🔄</span>
+                <span class="hidden md:inline">नई बातचीत</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-4xl mx-auto p-4">
+        
+        <!-- Chat Container -->
+        <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden border border-green-100">
+            
+            <!-- Chat Messages Area -->
+            <div id="chat-messages" class="chat-container overflow-y-auto p-4 space-y-4 bg-gradient-to-b from-green-50/50 to-white/50">
+                
+                <!-- Welcome Message -->
+                <div class="message bot-message p-4 shadow-sm">
+                    <div class="flex items-center space-x-2 mb-2">
+                        <span class="text-2xl">🤖</span>
+                        <span class="font-bold text-green-700">KrishiGPT</span>
+                    </div>
+                    <div class="text-gray-700">
+                        <p class="text-lg font-semibold text-green-800 mb-3">🌾 नमस्कार किसान भाई! 🙏</p>
+                        <p class="mb-3">मैं <strong>KrishiGPT</strong> हूं - आपका AI कृषि सलाहकार।</p>
+                        <p class="mb-2">आप मुझसे पूछ सकते हैं:</p>
+                        <ul class="ml-4 space-y-1 text-gray-600">
+                            <li>✅ फसल की बीमारी और इलाज</li>
+                            <li>✅ खाद-उर्वरक की जानकारी</li>
+                            <li>✅ सरकारी योजनाएं (PM-KISAN, बीमा)</li>
+                            <li>✅ कीट नियंत्रण</li>
+                        </ul>
+                        <p class="mt-3 text-gray-500 text-sm">👇 नीचे अपना सवाल हिंदी या मराठी में लिखें</p>
+                    </div>
+                </div>
+                
+            </div>
+            
+            <!-- Typing Indicator -->
+            <div id="typing-indicator" class="typing-indicator items-center space-x-2 px-4 py-3 bg-gray-50 border-t border-gray-100">
+                <div class="flex items-center space-x-1 bg-white px-4 py-2 rounded-full shadow-sm">
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                </div>
+                <span class="text-sm text-gray-500 ml-2">KrishiGPT सोच रहा है...</span>
+            </div>
+            
+            <!-- Input Area -->
+            <div class="bg-white p-4 border-t border-gray-100">
+                <form id="chat-form" class="flex space-x-2">
+                    <input 
+                        type="text" 
+                        id="user-input" 
+                        placeholder="अपना सवाल यहां लिखें... (उदा: टमाटर में पत्ते पीले हो रहे हैं)"
+                        class="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-200 transition text-gray-700"
+                        autocomplete="off"
+                        autofocus
+                    >
+                    <button 
+                        type="submit" 
+                        id="send-btn"
+                        class="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white px-6 py-3 rounded-xl font-bold transition duration-200 flex items-center space-x-2 shadow-lg hover:shadow-xl"
+                    >
+                        <span>भेजें</span>
+                        <span>➤</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Quick Question Buttons -->
+        <div class="mt-4">
+            <p class="text-gray-600 mb-3 font-medium">🚀 जल्दी पूछें:</p>
+            <div class="flex flex-wrap gap-2">
+                <button onclick="askQuestion('टमाटर में पत्ते पीले हो रहे हैं, क्या करूं?')" 
+                    class="quick-btn bg-white px-4 py-2 rounded-full text-sm hover:bg-green-50 border-2 border-green-200 text-gray-700 font-medium">
+                    🍅 टमाटर में पीले पत्ते
+                </button>
+                <button onclick="askQuestion('कपास में गुलाबी सुंडी का इलाज बताओ')" 
+                    class="quick-btn bg-white px-4 py-2 rounded-full text-sm hover:bg-green-50 border-2 border-green-200 text-gray-700 font-medium">
+                    🌿 कपास में गुलाबी सुंडी
+                </button>
+                <button onclick="askQuestion('प्याज में थ्रिप्स का उपचार बताओ')" 
+                    class="quick-btn bg-white px-4 py-2 rounded-full text-sm hover:bg-green-50 border-2 border-green-200 text-gray-700 font-medium">
+                    🧅 प्याज में थ्रिप्स
+                </button>
+                <button onclick="askQuestion('PM-KISAN योजना की जानकारी दो')" 
+                    class="quick-btn bg-white px-4 py-2 rounded-full text-sm hover:bg-green-50 border-2 border-green-200 text-gray-700 font-medium">
+                    💰 PM-KISAN योजना
+                </button>
+                <button onclick="askQuestion('गेहूं में रतुआ रोग का इलाज')" 
+                    class="quick-btn bg-white px-4 py-2 rounded-full text-sm hover:bg-green-50 border-2 border-green-200 text-gray-700 font-medium">
+                    🌾 गेहूं में रतुआ
+                </button>
+                <button onclick="askQuestion('सोयाबीन में कौन सी खाद डालें?')" 
+                    class="quick-btn bg-white px-4 py-2 rounded-full text-sm hover:bg-green-50 border-2 border-green-200 text-gray-700 font-medium">
+                    🫘 सोयाबीन में खाद
+                </button>
+                <button onclick="askQuestion('अनार में तेलिया रोग का उपचार')" 
+                    class="quick-btn bg-white px-4 py-2 rounded-full text-sm hover:bg-green-50 border-2 border-green-200 text-gray-700 font-medium">
+                    🍎 अनार में तेलिया
+                </button>
+                <button onclick="askQuestion('किसान हेल्पलाइन नंबर बताओ')" 
+                    class="quick-btn bg-white px-4 py-2 rounded-full text-sm hover:bg-green-50 border-2 border-green-200 text-gray-700 font-medium">
+                    📞 हेल्पलाइन नंबर
+                </button>
+            </div>
+        </div>
+        
+        <!-- Info Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+            <div class="bg-white/80 backdrop-blur-sm p-4 rounded-xl shadow-md border border-green-100">
+                <div class="text-2xl mb-2">🌱</div>
+                <h3 class="font-bold text-green-800">8 फसलें</h3>
+                <p class="text-sm text-gray-600">टमाटर, प्याज, कपास, गेहूं, गन्ना, सोयाबीन, अंगूर, अनार</p>
+            </div>
+            <div class="bg-white/80 backdrop-blur-sm p-4 rounded-xl shadow-md border border-green-100">
+                <div class="text-2xl mb-2">💊</div>
+                <h3 class="font-bold text-green-800">बीमारी पहचान</h3>
+                <p class="text-sm text-gray-600">लक्षण बताएं, इलाज पाएं</p>
+            </div>
+            <div class="bg-white/80 backdrop-blur-sm p-4 rounded-xl shadow-md border border-green-100">
+                <div class="text-2xl mb-2">📋</div>
+                <h3 class="font-bold text-green-800">सरकारी योजनाएं</h3>
+                <p class="text-sm text-gray-600">PM-KISAN, बीमा, KCC की जानकारी</p>
+            </div>
+        </div>
+        
+    </main>
+
+    <!-- Footer -->
+    <footer class="text-center py-4 mt-6">
+        <p class="text-gray-600 text-sm">🌱 KrishiGPT - किसानों के लिए AI सलाहकार</p>
+        <p class="text-gray-500 text-xs mt-1">⚠️ यह AI सलाह है। गंभीर समस्या में कृषि अधिकारी से मिलें।</p>
+        <p class="text-gray-500 text-xs mt-1">📞 किसान हेल्पलाइन: <strong>1551</strong> (टोल फ्री)</p>
+    </footer>
+
+    <!-- JavaScript -->
+    <script>
+        // Generate unique user ID for this session
+        let userId = localStorage.getItem('krishigpt_user_id');
+        if (!userId) {
+            userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('krishigpt_user_id', userId);
+        }
+
+        // DOM Elements
+        const chatMessages = document.getElementById('chat-messages');
+        const chatForm = document.getElementById('chat-form');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+        const typingIndicator = document.getElementById('typing-indicator');
+
+        // Scroll to bottom of chat
+        function scrollToBottom() {
+            setTimeout(() => {
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }, 100);
+        }
+
+        // Format AI response (convert markdown-like formatting)
+        function formatResponse(text) {
+            // Bold text: **text** -> <strong>text</strong>
+            text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            
+            // Convert line breaks
+            text = text.replace(/\n/g, '<br>');
+            
+            return text;
+        }
+
+        // Add message to chat
+        function addMessage(text, isUser) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user-message ml-auto' : 'bot-message'} p-4`;
+            
+            if (isUser) {
+                messageDiv.innerHTML = `
+                    <div class="flex items-center space-x-2 mb-1">
+                        <span class="text-lg">👨‍🌾</span>
+                        <span class="font-semibold text-gray-700">आप</span>
+                    </div>
+                    <p class="text-gray-800">${escapeHtml(text)}</p>
+                `;
+            } else {
+                messageDiv.innerHTML = `
+                    <div class="flex items-center space-x-2 mb-2">
+                        <span class="text-xl">🤖</span>
+                        <span class="font-bold text-green-700">KrishiGPT</span>
+                    </div>
+                    <div class="response-text text-gray-700">${formatResponse(text)}</div>
+                `;
+            }
+            
+            chatMessages.appendChild(messageDiv);
+            scrollToBottom();
+        }
+
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Show typing indicator
+        function showTyping() {
+            typingIndicator.classList.add('show');
+            scrollToBottom();
+        }
+
+        // Hide typing indicator
+        function hideTyping() {
+            typingIndicator.classList.remove('show');
+        }
+
+        // Send message to API
+        async function sendMessage(message) {
+            try {
+                showTyping();
+                sendBtn.disabled = true;
+                sendBtn.innerHTML = '<span>भेज रहा...</span>';
+                userInput.disabled = true;
+
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        message: message
+                    })
+                });
+
+                const data = await response.json();
+                hideTyping();
+
+                if (data.success) {
+                    addMessage(data.response, false);
+                } else {
+                    addMessage('❌ कुछ गलत हो गया: ' + (data.error || 'Unknown error'), false);
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                hideTyping();
+                addMessage('❌ सर्वर से कनेक्शन नहीं हो पाया। कृपया इंटरनेट चेक करें और फिर से प्रयास करें।', false);
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.innerHTML = '<span>भेजें</span><span>➤</span>';
+                userInput.disabled = false;
+                userInput.focus();
+            }
+        }
+
+        // Handle form submit
+        chatForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const message = userInput.value.trim();
+            
+            if (message) {
+                addMessage(message, true);
+                userInput.value = '';
+                sendMessage(message);
+            }
+        });
+
+        // Quick question button click
+        function askQuestion(question) {
+            userInput.value = question;
+            chatForm.dispatchEvent(new Event('submit'));
+        }
+
+        // Clear chat history
+        async function clearChat() {
+            try {
+                await fetch('/api/clear-history', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ user_id: userId })
+                });
+                
+                // Clear chat UI except welcome message
+                const messages = chatMessages.querySelectorAll('.message');
+                messages.forEach((msg, index) => {
+                    if (index > 0) { // Keep first message (welcome)
+                        msg.remove();
+                    }
+                });
+                
+                // Add confirmation
+                addMessage('🔄 बातचीत साफ हो गई। नया सवाल पूछें!', false);
+                
+            } catch (error) {
+                console.error('Error clearing chat:', error);
+            }
+        }
+
+        // Handle Enter key
+        userInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                chatForm.dispatchEvent(new Event('submit'));
+            }
+        });
+
+        // Focus on input when page loads
+        window.onload = function() {
+            userInput.focus();
+            scrollToBottom();
+        };
+
+        // Service Worker for offline capability (optional)
+        if ('serviceWorker' in navigator) {
+            // Can be added later for PWA functionality
+        }
+    </script>
+</body>
+</html>
