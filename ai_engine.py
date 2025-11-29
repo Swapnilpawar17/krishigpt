@@ -2,6 +2,7 @@
 # KrishiGPT - AI Agricultural Advisor Engine
 # This is the brain of KrishiGPT
 
+import redis
 import os
 import json
 import time
