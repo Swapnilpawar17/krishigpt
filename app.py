@@ -1,9 +1,11 @@
 # app.py
-# KrishiGPT - Flask Web Application with WhatsApp Integration
+# KrishiGPT - Flask Web Application with WhatsApp Integration + Metrics
 
 import os
 import uuid
+import time
 import logging
+import redis
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify, render_template, abort
 from ai_engine import KrishiGPT
@@ -27,12 +29,49 @@ app.config["SECRET_KEY"] = os.urandom(24)
 limiter = Limiter(
     key_func=get_remote_address,
     app=app,
-    storage_uri=os.getenv("REDIS_URL", "memory://")  # falls back to in-process if REDIS_URL not set
+    storage_uri=os.getenv("REDIS_URL", "memory://")
 )
 
 print("\n" + "=" * 60)
 print("🌾 Starting KrishiGPT Web Server...")
 print("=" * 60 + "\n")
+
+# ---------- Metrics (Redis-backed counters) ----------
+uptime_start = time.time()
+redis_metrics = None
+metrics_local = {}
+
+def _metrics_inc(key, by=1):
+    try:
+        if redis_metrics:
+            redis_metrics.incrby(f"metrics:{key}", by)
+        else:
+            metrics_local[key] = metrics_local.get(key, 0) + by
+    except Exception:
+        metrics_local[key] = metrics_local.get(key, 0) + by
+
+def _metrics_get(key):
+    try:
+        if redis_metrics:
+            v = redis_metrics.get(f"metrics:{key}")
+            return int(v or 0)
+    except Exception:
+        pass
+    return int(metrics_local.get(key, 0))
+
+def _metrics_snapshot():
+    keys = ["chat_requests", "chat_success", "chat_errors",
+            "wa_inbound", "wa_success", "wa_errors"]
+    return {k: _metrics_get(k) for k in keys}
+
+# Connect metrics Redis (reuse REDIS_URL)
+if os.getenv("REDIS_URL"):
+    try:
+        redis_metrics = redis.from_url(os.getenv("REDIS_URL"), decode_responses=True)
+        redis_metrics.ping()
+        print("✅ Metrics Redis connected")
+    except Exception as e:
+        print(f"⚠️ Metrics Redis not available: {e}")
 
 # Initialize AI
 krishigpt = None
@@ -80,26 +119,51 @@ def health():
 def healthz():
     return health()
 
+# ---------- Metrics route ----------
+@app.get("/metrics")
+def metrics():
+    # Protect if METRICS_TOKEN is set
+    token_cfg = os.getenv("METRICS_TOKEN")
+    if token_cfg:
+        token = request.headers.get("X-Metrics-Token") or request.args.get("token")
+        if token != token_cfg:
+            return jsonify({"error": "unauthorized"}), 401
+
+    data = _metrics_snapshot()
+    data.update({
+        "uptime_seconds": round(time.time() - uptime_start, 2),
+        "ai_ready": bool(krishigpt and getattr(krishigpt, "ai_ready", True)),
+        "store_ready": bool(krishigpt and getattr(krishigpt, "kv_ready", False))
+    })
+    return jsonify(data)
+
 # ---------- Chat API ----------
 
-@limiter.limit("10 per minute; 200 per day")
+@limiter.limit(os.getenv("CHAT_RATE_PER_MIN", "10 per minute") + "; " +
+               os.getenv("CHAT_RATE_PER_DAY", "200 per day"))
 @app.route("/api/chat", methods=["POST"])
 def chat():
+    _metrics_inc("chat_requests")
+
     if not krishigpt or not getattr(krishigpt, "ai_ready", True):
+        _metrics_inc("chat_errors")
         return jsonify({"success": False, "error": "AI Engine not initialized"}), 503
 
     data = request.get_json(silent=True) or {}
     user_id = data.get("user_id") or str(uuid.uuid4())
     message = (data.get("message") or "").strip()
     if not message:
+        _metrics_inc("chat_errors")
         return jsonify({"success": False, "error": "Message is required"}), 400
 
     try:
         logger.info(f"Web chat from {user_id}: {message[:80]}...")
         response = krishigpt.get_response(user_id, message)
+        _metrics_inc("chat_success")
         return jsonify({"success": True, "response": response, "user_id": user_id})
     except Exception as e:
         logger.exception("Error in /api/chat")
+        _metrics_inc("chat_errors")
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route("/api/clear-history", methods=["POST"])
@@ -123,11 +187,13 @@ def quick_info(topic):
         return jsonify({"success": False, "error": str(e)}), 500
 
 # ---------- WhatsApp (Twilio) ----------
-# We do NOT rate limit this route to avoid Twilio retry loops.
+# Not rate-limited to avoid Twilio retry loops.
 @app.route("/whatsapp/webhook", methods=["GET", "POST"])
 def whatsapp_webhook():
     if request.method == "GET":
         return jsonify({"status": "WhatsApp webhook is active", "service": "KrishiGPT"})
+
+    _metrics_inc("wa_inbound")
 
     if twilio_validator:
         signature = request.headers.get("X-Twilio-Signature", "")
@@ -147,6 +213,7 @@ def whatsapp_webhook():
 
         if not krishigpt or not getattr(krishigpt, "ai_ready", True):
             msg.body("❌ सर्वर में तकनीकी समस्या है। कृपया 5 मिनट बाद प्रयास करें।\n\n📞 किसान हेल्पलाइन: 1551")
+            _metrics_inc("wa_errors")
             return str(resp), 200, {"Content-Type": "application/xml"}
 
         lower = incoming_msg.lower()
@@ -166,11 +233,13 @@ def whatsapp_webhook():
 🔄 रीसेट: "नया" लिखें
 💬 अब अपना सवाल पूछें! 👇"""
             msg.body(welcome)
+            _metrics_inc("wa_success")
             return str(resp), 200, {"Content-Type": "application/xml"}
 
         if lower in ["clear","reset","नया","नवीन","रीसेट","new"]:
             krishigpt.clear_history(sender)
             msg.body("✅ बातचीत का इतिहास साफ हो गया।\n\n🔄 अब नया सवाल पूछें!")
+            _metrics_inc("wa_success")
             return str(resp), 200, {"Content-Type": "application/xml"}
 
         if lower in ["helpline","हेल्पलाइन","फोन","contact","संपर्क"]:
@@ -182,6 +251,7 @@ def whatsapp_webhook():
 
 किसी भी समस्या के लिए 1551 पर कॉल करें।"""
             msg.body(helpline)
+            _metrics_inc("wa_success")
             return str(resp), 200, {"Content-Type": "application/xml"}
 
         if lower in ["योजना","scheme","schemes","योजनाएं","yojana"]:
@@ -193,10 +263,12 @@ def whatsapp_webhook():
 
 किसी योजना का नाम लिखें विस्तृत जानकारी के लिए."""
             msg.body(scheme_msg)
+            _metrics_inc("wa_success")
             return str(resp), 200, {"Content-Type": "application/xml"}
 
         if not incoming_msg:
             msg.body("🤔 कृपया अपना सवाल लिखें।\nउदाहरण: टमाटर में पत्ते पीले हो रहे हैं")
+            _metrics_inc("wa_success")
             return str(resp), 200, {"Content-Type": "application/xml"}
 
         # AI response
@@ -208,12 +280,14 @@ def whatsapp_webhook():
 
         msg.body(ai_response)
         logger.info(f"✅ Response sent to {sender_short}")
+        _metrics_inc("wa_success")
         return str(resp), 200, {"Content-Type": "application/xml"}
 
     except Exception as e:
         logger.exception("❌ WhatsApp webhook error")
         resp = MessagingResponse()
         resp.message("❌ माफ करें, तकनीकी समस्या है। कृपया थोड़ी देर बाद प्रयास करें।\n\n📞 किसान हेल्पलाइन: 1551")
+        _metrics_inc("wa_errors")
         return str(resp), 200, {"Content-Type": "application/xml"}
 
 # ---------- Docs ----------
@@ -235,6 +309,7 @@ def api_docs():
             "GET /": "Web chat interface",
             "GET /health": "Health check",
             "GET /healthz": "Health check alias",
+            "GET /metrics": "Usage counters (protected by METRICS_TOKEN if set)",
             "POST /api/chat": "Web chat API { message, user_id? }",
             "POST /api/clear-history": "Clear chat history",
             "GET /api/quick-info/<topic>": "Quick info",
