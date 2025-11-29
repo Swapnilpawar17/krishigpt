@@ -11,6 +11,10 @@ from twilio.twiml.messaging_response import MessagingResponse
 from twilio.rest import Client as TwilioClient
 from twilio.request_validator import RequestValidator
 
+# Rate limiting
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -18,6 +22,13 @@ logger = logging.getLogger("krishigpt")
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.urandom(24)
+
+# Limiter: use Redis if available so limits work across workers
+limiter = Limiter(
+    key_func=get_remote_address,
+    app=app,
+    storage_uri=os.getenv("REDIS_URL", "memory://")  # falls back to in-process if REDIS_URL not set
+)
 
 print("\n" + "=" * 60)
 print("🌾 Starting KrishiGPT Web Server...")
@@ -60,7 +71,7 @@ def health():
         "status": "healthy",
         "service": "KrishiGPT",
         "version": os.getenv("APP_VERSION", "1.0.0"),
-        "ai_ready": bool(krishigpt and getattr(krishigpt, "ai_ready", False)),
+        "ai_ready": bool(krishigpt is not None and getattr(krishigpt, "ai_ready", True)),
         "store_ready": bool(krishigpt and getattr(krishigpt, "kv_ready", False)),
         "whatsapp_ready": twilio_client is not None
     })
@@ -71,9 +82,10 @@ def healthz():
 
 # ---------- Chat API ----------
 
+@limiter.limit("10 per minute; 200 per day")
 @app.route("/api/chat", methods=["POST"])
 def chat():
-    if not krishigpt or not getattr(krishigpt, "ai_ready", False):
+    if not krishigpt or not getattr(krishigpt, "ai_ready", True):
         return jsonify({"success": False, "error": "AI Engine not initialized"}), 503
 
     data = request.get_json(silent=True) or {}
@@ -100,7 +112,7 @@ def clear_history():
 
 @app.route("/api/quick-info/<topic>")
 def quick_info(topic):
-    if not krishigpt or not getattr(krishigpt, "ai_ready", False):
+    if not krishigpt or not getattr(krishigpt, "ai_ready", True):
         return jsonify({"success": False, "error": "AI not ready"}), 503
     try:
         info = krishigpt.get_quick_info(topic)
@@ -111,7 +123,7 @@ def quick_info(topic):
         return jsonify({"success": False, "error": str(e)}), 500
 
 # ---------- WhatsApp (Twilio) ----------
-
+# We do NOT rate limit this route to avoid Twilio retry loops.
 @app.route("/whatsapp/webhook", methods=["GET", "POST"])
 def whatsapp_webhook():
     if request.method == "GET":
@@ -133,7 +145,7 @@ def whatsapp_webhook():
         resp = MessagingResponse()
         msg = resp.message()
 
-        if not krishigpt or not getattr(krishigpt, "ai_ready", False):
+        if not krishigpt or not getattr(krishigpt, "ai_ready", True):
             msg.body("❌ सर्वर में तकनीकी समस्या है। कृपया 5 मिनट बाद प्रयास करें।\n\n📞 किसान हेल्पलाइन: 1551")
             return str(resp), 200, {"Content-Type": "application/xml"}
 
@@ -205,6 +217,15 @@ def whatsapp_webhook():
         return str(resp), 200, {"Content-Type": "application/xml"}
 
 # ---------- Docs ----------
+
+@app.errorhandler(404)
+def not_found(e):
+    return jsonify({"success": False, "error": "Not found"}), 404
+
+@app.errorhandler(500)
+def server_error(e):
+    return jsonify({"success": False, "error": "Server error"}), 500
+
 @app.route("/api/docs")
 def api_docs():
     return jsonify({
@@ -220,14 +241,6 @@ def api_docs():
             "POST /whatsapp/webhook": "Twilio WhatsApp webhook"
         }
     })
-
-@app.errorhandler(404)
-def not_found(e):
-    return jsonify({"success": False, "error": "Not found"}), 404
-
-@app.errorhandler(500)
-def server_error(e):
-    return jsonify({"success": False, "error": "Server error"}), 500
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
