@@ -17,23 +17,31 @@
     .user { background: #e8f0fe; text-align: right; }
     .bot { background: #e7f7e7; }
     .row { display: flex; gap: 8px; margin-top: 12px; }
-    input, select { flex: 1; padding: 10px; border-radius: 6px; border: 1px solid #ccc; }
-    button { padding: 10px 14px; border: 0; border-radius: 6px; background: var(--green); color:#fff; cursor: pointer; }
+    input, select { flex: 1; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-size:14px; width:100%; box-sizing:border-box; }
+    button { padding: 10px 14px; border: 0; border-radius: 6px; background: var(--green); color:#fff; cursor: pointer; white-space:nowrap; }
     button.secondary { background:#1f2937; }
     button:disabled { background:#9aa5b1; cursor:not-allowed; }
     .toolbar { display:flex; gap:8px; margin-bottom:10px; flex-wrap: wrap; }
     /* Modal */
-    .modal { position: fixed; inset:0; background: rgba(0,0,0,.45); display:none; align-items: center; justify-content: center; padding: 16px; }
+    .modal { position: fixed; inset:0; background: rgba(0,0,0,.45); display:none; align-items: center; justify-content: center; padding: 16px; z-index:999; }
     .modal.show { display:flex; }
-    .box { width: 100%; max-width: 720px; background:#fff; border-radius: 10px; padding: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.2); }
-    .grid { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+    .box { width: 100%; max-width: 600px; background:#fff; border-radius: 10px; padding: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.2); overflow-y:auto; max-height:90vh; }
+    .grid { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
     .grid .full { grid-column: 1 / -1; }
-    .hint { color: var(--muted); font-size: 12px; }
-    .result { background:#f8fafc; border:1px solid #eee; border-radius:8px; padding:12px; margin-top:10px; }
+    .hint { color: var(--muted); font-size: 12px; margin-top:4px; }
+    .result { background:#f8fafc; border:1px solid #eee; border-radius:8px; padding:12px; margin-top:12px; position:relative; }
     .close { background:#ef4444; }
     .pill { font-size:12px; padding:4px 8px; border-radius:999px; background:#eef2ff; color:#3730a3; }
-    .footer { color:#6b7280; font-size:12px; margin-top:10px; }
-    .hr { height:1px; background:#eee; margin: 10px 0; }
+    .footer { color:#6b7280; font-size:12px; margin-top:12px; text-align:center; }
+    .hr { height:1px; background:#eee; margin: 12px 0; }
+    label { font-weight:500; font-size:14px; display:block; margin-bottom:4px; }
+    /* Copy btn */
+    .copy-btn { position: absolute; top:8px; right:8px; font-size:11px; background:#e5e7eb; color:#374151; padding:4px 8px; border-radius:4px; cursor:pointer; }
+    .copy-btn:hover { background:#d1d5db; }
+
+    @media (max-width: 600px) {
+      .grid { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
@@ -44,12 +52,11 @@
 
       <div class="toolbar">
         <button id="openCalcBtn">🧮 Dosage Calculator</button>
-        <a href="/api/docs" target="_blank"><button class="secondary">API Docs</button></a>
       </div>
 
       <div id="chat"></div>
       <div class="row">
-        <input id="msg" placeholder="अपना सवाल लिखें… (जैसे: कपास में गुलाबी सुंडी का इलाज)"/>
+        <input id="msg" placeholder="अपना सवाल लिखें… (e.g., टमाटर में फलन के समय खाद)"/>
         <button id="send">Send</button>
       </div>
       <div class="footer">
@@ -62,52 +69,46 @@
   <div id="calcModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="calcTitle">
     <div class="box">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
-        <h3 id="calcTitle" style="margin:0;">🧮 Dosage Calculator</h3>
-        <button id="closeCalcBtn" class="close">Close</button>
+        <h3 id="calcTitle" style="margin:0;">🧮 डोज़ कैलकुलेटर (Dosage)</h3>
+        <button id="closeCalcBtn" class="close">✕</button>
       </div>
       <div class="hr"></div>
 
       <div class="grid">
         <div class="full">
-          <label>Product (optional)
+          <label>उत्पाद का नाम (Product Name) <span style="font-weight:normal;color:#888">(optional)</span>
             <input id="c_product" placeholder="e.g., Emamectin 5% SG"/>
           </label>
         </div>
         <div>
-          <label>Unit
-            <select id="c_unit">
-              <option value="ml_per_l">ml per liter (ml/L)</option>
-              <option value="g_per_l">g per liter (g/L)</option>
-              <option value="ml_per_acre">ml per acre</option>
-              <option value="g_per_acre">g per acre</option>
-            </select>
-          </label>
-          <div class="hint">लेबल के अनुसार इकाई चुनें</div>
+          <label>इकाई (Unit)</label>
+          <select id="c_unit">
+            <option value="ml_per_l">ml per liter (ml/L)</option>
+            <option value="g_per_l">g per liter (g/L)</option>
+            <option value="ml_per_acre">ml per acre</option>
+            <option value="g_per_acre">g per acre</option>
+          </select>
+          <div class="hint">लेबल के अनुसार चुनें</div>
         </div>
         <div>
-          <label>Rate
-            <input id="c_rate" type="number" step="any" placeholder="e.g., 0.5"/>
-          </label>
+          <label>दर (Rate)</label>
+          <input id="c_rate" type="number" step="any" placeholder="e.g., 0.5"/>
           <div class="hint">ml/L, g/L, ml/acre या g/acre</div>
         </div>
         <div>
-          <label>Tank size (L)
-            <input id="c_tank" type="number" step="any" placeholder="e.g., 15 or 200"/>
-          </label>
+          <label>टैंक साइज (Tank Size - L)</label>
+          <input id="c_tank" type="number" step="any" placeholder="e.g., 15 or 200"/>
         </div>
         <div>
-          <label>Spray volume (L/acre)
-            <input id="c_spray" type="number" step="any" placeholder="e.g., 200"/>
-          </label>
+          <label>स्प्रे मात्रा (Spray Volume - L/acre)</label>
+          <input id="c_spray" type="number" step="any" placeholder="e.g., 200"/>
         </div>
         <div>
-          <label>Area (acre)
-            <input id="c_area" type="number" step="any" value="1"/>
-          </label>
+          <label>क्षेत्र (Area - Acre)</label>
+          <input id="c_area" type="number" step="any" value="1"/>
         </div>
-        <div class="full">
-          <button id="calcBtn">Calculate</button>
-          <span class="pill">No data is stored</span>
+        <div class="full" style="display:flex;justify-content:space-between;align-items:center;">
+          <button id="calcBtn" style="width:100%">Calculate (गणना करें)</button>
         </div>
 
         <div class="full">
@@ -116,17 +117,16 @@
       </div>
 
       <div class="footer">
-        Notes: हमेशा उत्पाद के लेबल/स्थानीय नियम देखें। PHI/REI और PPE का पालन ज़रूरी है।
+        नोट: हमेशा उत्पाद लेबल/स्थानीय नियमों का पालन करें। PHI/REI और PPE ज़रूरी है।
       </div>
     </div>
   </div>
 
   <script>
-    // Optional: If you want to use the secure endpoints, paste your API key here
-    // and the UI will switch to /api/calc/dose-secure automatically.
-    const API_KEY = ""; // e.g., "your-secret"; keep empty to use open endpoint
+    // If using secure endpoint, set API_KEY here.
+    const API_KEY = ""; 
 
-    // Chat logic (unchanged)
+    // Chat logic
     const chat = document.getElementById('chat');
     const input = document.getElementById('msg');
     const btn = document.getElementById('send');
@@ -163,7 +163,7 @@
     btn.onclick = send;
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
 
-    // Calculator modal logic
+    // Calculator logic
     const openCalcBtn = document.getElementById('openCalcBtn');
     const closeCalcBtn = document.getElementById('closeCalcBtn');
     const calcModal = document.getElementById('calcModal');
@@ -182,19 +182,27 @@
       const v = document.getElementById(id).value.trim();
       return v === '' ? null : v;
     }
-
     function num(v) {
       if (v === null) return null;
       const n = parseFloat(v);
       return isNaN(n) ? null : n;
     }
-
     function fmt(x) {
-      if (x === null || x === undefined) return '-';
+      if (x == null) return '-';
       const n = Number(x);
-      if (Number.isNaN(n)) return String(x);
+      if (Number.isNaN(n)) return '-';
       return n < 1 ? n.toFixed(3) : n.toFixed(2);
     }
+
+    // Copy result logic
+    window.copyResult = function() {
+      const text = document.getElementById('resultText').innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        const b = document.getElementById('copyBtn');
+        b.textContent = 'Copied!';
+        setTimeout(() => b.textContent = 'Copy', 1500);
+      });
+    };
 
     function renderResult(data) {
       const r = data.results || {};
@@ -205,20 +213,21 @@
       const water = r.total_water_l != null ? `${fmt(r.total_water_l)} L` : '-';
       const tanks = r.tanks_needed != null ? fmt(r.tanks_needed) : '-';
 
-      const notes = (data.notes || []).map(n => `• ${n}`).join('<br/>');
+      const resultText = `Product: ${data.input?.product || 'N/A'}
+Per Liter: ${perL}
+Per Tank: ${perT}
+Per Acre: ${perA}
+Total (${data.input.area_acre} acre): ${total}
+Water needed: ${water}
+Tanks needed: ${tanks}`;
 
       calcOut.innerHTML = `
-        <div><strong>Product:</strong> ${data.input?.product || '-'}</div>
-        <div style="margin-top:6px;">
-          <div>Per liter: <strong>${perL}</strong></div>
-          <div>Per tank: <strong>${perT}</strong></div>
-          <div>Per acre: <strong>${perA}</strong></div>
-          <div>Total for area: <strong>${total}</strong></div>
-          <div>Total water: <strong>${water}</strong></div>
-          <div>Tanks needed: <strong>${tanks}</strong></div>
+        <div id="copyBtn" class="copy-btn" onclick="copyResult()">Copy</div>
+        <div id="resultText" style="font-family:monospace; white-space:pre-wrap; font-size:13px; line-height:1.5;">${resultText}</div>
+        <div class="hint" style="margin-top:8px;">
+          • Always follow label (हमेशा लेबल देखें)<br/>
+          • PHI/REI and PPE mandatory
         </div>
-        <div class="hr"></div>
-        <div class="hint">${notes}</div>
       `;
       calcOut.style.display = 'block';
     }
@@ -232,8 +241,8 @@
       const spray = num(val('c_spray'));
       const area = num(val('c_area'));
 
-      if (!unit) { alert('Please select unit'); return; }
-      if (rate == null) { alert('Please enter rate'); return; }
+      if (!unit) { alert('Please select unit (इकाई चुनें)'); return; }
+      if (rate == null) { alert('Please enter rate (दर भरें)'); return; }
 
       payload.unit = unit;
       payload.rate = rate;
@@ -256,7 +265,7 @@
         calcOut.style.display = 'block';
         calcOut.innerHTML = `<span style="color:#b91c1c">Error: ${e.message || e}</span>`;
       } finally {
-        calcBtn.disabled = false; calcBtn.textContent = 'Calculate';
+        calcBtn.disabled = false; calcBtn.textContent = 'Calculate (गणना करें)';
       }
     });
   </script>
