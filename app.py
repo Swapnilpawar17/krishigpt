@@ -1,9 +1,10 @@
 # app.py
-# KrishiGPT - Flask Web Application with WhatsApp Integration + Metrics + Secure API
+# KrishiGPT - Flask Web Application with WhatsApp Integration + Metrics + Secure API + Dosage Calculator
 
 import os
 import uuid
 import time
+import math
 import logging
 import redis
 from dotenv import load_dotenv
@@ -61,8 +62,11 @@ def _metrics_get(key):
     return int(metrics_local.get(key, 0))
 
 def _metrics_snapshot():
-    keys = ["chat_requests", "chat_success", "chat_errors",
-            "wa_inbound", "wa_success", "wa_errors"]
+    keys = [
+        "chat_requests", "chat_success", "chat_errors",
+        "wa_inbound", "wa_success", "wa_errors",
+        "calc_requests", "calc_success", "calc_errors"
+    ]
     return {k: _metrics_get(k) for k in keys}
 
 # Connect metrics Redis (reuse REDIS_URL)
@@ -103,13 +107,101 @@ def require_api_key(f):
     def _wrap(*args, **kwargs):
         expected = os.getenv("API_SECRET", "").strip()
         if not expected:
-            # If no secret configured, allow (so you don't lock yourself out)
             return f(*args, **kwargs)
         provided = request.headers.get("X-API-Key", "").strip()
         if provided != expected:
             return jsonify({"success": False, "error": "unauthorized"}), 401
         return f(*args, **kwargs)
     return _wrap
+
+def _calc_dose(payload: dict):
+    """
+    Inputs (JSON):
+      - unit: one of ["ml_per_l", "g_per_l", "ml_per_acre", "g_per_acre"]  REQUIRED
+      - rate: float (the numeric dose)                                        REQUIRED
+      - tank_size_l: float (e.g., 15 or 200)                                  OPTIONAL (needed for per_tank)
+      - spray_volume_l_per_acre: float (e.g., 200)                            OPTIONAL (needed for acre/area conversions)
+      - area_acre: float (default 1.0)                                        OPTIONAL
+      - product: str (optional, just echoed back)
+    Output units:
+      - ml for ml_* units, g for g_* units
+    """
+    unit = (payload.get("unit") or "").strip().lower()
+    rate = payload.get("rate", None)
+    tank_size = float(payload.get("tank_size_l", 0) or 0)
+    spray_vol = float(payload.get("spray_volume_l_per_acre", 0) or 0)
+    area = float(payload.get("area_acre", 1) or 1)
+    product = payload.get("product")
+
+    if unit not in ["ml_per_l", "g_per_l", "ml_per_acre", "g_per_acre"]:
+        return None, "invalid unit. Use one of: ml_per_l, g_per_l, ml_per_acre, g_per_acre."
+    if rate is None:
+        return None, "rate is required."
+
+    # Determine unit symbol for product amount
+    amt_unit = "ml" if unit.startswith("ml_") else "g"
+
+    per_liter = None
+    per_tank = None
+    per_acre = None
+    total_area_amt = None
+    total_water = None
+    tanks_needed = None
+
+    if unit in ["ml_per_l", "g_per_l"]:
+        # Given per liter -> derive others if spray volume known
+        per_liter = float(rate)
+        if tank_size > 0:
+            per_tank = per_liter * tank_size
+        if spray_vol > 0:
+            per_acre = per_liter * spray_vol
+            total_water = spray_vol * area
+            total_area_amt = per_liter * total_water
+            if tank_size > 0:
+                tanks_needed = total_water / tank_size
+    else:
+        # Given per acre -> derive others if spray volume known
+        per_acre = float(rate)
+        if spray_vol <= 0:
+            # Can't derive per liter or per tank without spray volume
+            total_area_amt = per_acre * area
+        else:
+            per_liter = per_acre / spray_vol
+            total_water = spray_vol * area
+            total_area_amt = per_acre * area
+            if tank_size > 0:
+                per_tank = per_acre * (tank_size / spray_vol)
+                tanks_needed = total_water / tank_size
+
+    # Round nicely
+    def r(x): 
+        if x is None: return None
+        # for small numbers use 3 decimals, otherwise 2
+        return round(float(x), 3 if float(x) < 1 else 2)
+
+    result = {
+        "input": {
+            "product": product,
+            "unit": unit,
+            "rate": float(rate),
+            "tank_size_l": tank_size or None,
+            "spray_volume_l_per_acre": spray_vol or None,
+            "area_acre": area
+        },
+        "results": {
+            "per_liter": {"amount": r(per_liter), "unit": amt_unit} if per_liter is not None else None,
+            "per_tank": {"amount": r(per_tank), "unit": amt_unit} if per_tank is not None else None,
+            "per_acre": {"amount": r(per_acre), "unit": amt_unit} if per_acre is not None else None,
+            "area_total": {"amount": r(total_area_amt), "unit": amt_unit, "area_acre": area} if total_area_amt is not None else None,
+            "total_water_l": r(total_water),
+            "tanks_needed": r(tanks_needed)
+        },
+        "notes": [
+            "Always follow the product label and local regulations.",
+            "PHI/REI and PPE must be followed. Values here are calculator estimates."
+        ]
+    }
+    return result, None
 
 # ---------- Web ----------
 
@@ -154,7 +246,6 @@ def metrics():
     return jsonify(data)
 
 # ---------- Chat API (open; used by your web UI) ----------
-
 @limiter.limit(os.getenv("CHAT_RATE_PER_MIN", "10 per minute") + "; " +
                os.getenv("CHAT_RATE_PER_DAY", "200 per day"))
 @app.route("/api/chat", methods=["POST"])
@@ -175,7 +266,7 @@ def chat():
     try:
         logger.info(f"Web chat from {user_id}: {message[:80]}...")
         answer = krishigpt.get_response(user_id, message)
-        # Add a short disclaimer like WhatsApp does
+        # Add a short disclaimer
         answer += "\n\n---\n⚠️ यह सामान्य सलाह है; स्थानीय लेबल/नियम देखें। संदेह में KVK/कृषि अधिकारी से संपर्क करें।"
         _metrics_inc("chat_success")
         return jsonify({"success": True, "response": answer, "user_id": user_id})
@@ -185,13 +276,11 @@ def chat():
         return jsonify({"success": False, "error": str(e)}), 500
 
 # ---------- Chat API (secure; requires X-API-Key) ----------
-
 @require_api_key
 @limiter.limit(os.getenv("CHAT_RATE_PER_MIN", "10 per minute") + "; " +
                os.getenv("CHAT_RATE_PER_DAY", "200 per day"))
 @app.route("/api/chat-secure", methods=["POST"])
 def chat_secure():
-    # Same logic as /api/chat, but protected by API key
     _metrics_inc("chat_requests")
 
     if not krishigpt or not getattr(krishigpt, "ai_ready", True):
@@ -216,7 +305,45 @@ def chat_secure():
         _metrics_inc("chat_errors")
         return jsonify({"success": False, "error": str(e)}), 500
 
-# ---------- Quick info ----------
+# ---------- Dosage calculator (open) ----------
+@limiter.limit(os.getenv("CALC_RATE_PER_MIN", "60 per minute"))
+@app.route("/api/calc/dose", methods=["POST"])
+def calc_dose():
+    _metrics_inc("calc_requests")
+    try:
+        payload = request.get_json(silent=True) or {}
+        result, err = _calc_dose(payload)
+        if err:
+            _metrics_inc("calc_errors")
+            return jsonify({"success": False, "error": err}), 400
+        _metrics_inc("calc_success")
+        return jsonify({"success": True, "data": result})
+    except Exception as e:
+        logger.exception("Error in /api/calc/dose")
+        _metrics_inc("calc_errors")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+# ---------- Dosage calculator (secure) ----------
+@require_api_key
+@limiter.limit(os.getenv("CALC_RATE_PER_MIN", "60 per minute"))
+@app.route("/api/calc/dose-secure", methods=["POST"])
+def calc_dose_secure():
+    _metrics_inc("calc_requests")
+    try:
+        payload = request.get_json(silent=True) or {}
+        result, err = _calc_dose(payload)
+        if err:
+            _metrics_inc("calc_errors")
+            return jsonify({"success": False, "error": err}), 400
+        _metrics_inc("calc_success")
+        return jsonify({"success": True, "data": result})
+    except Exception as e:
+        logger.exception("Error in /api/calc/dose-secure")
+        _metrics_inc("calc_errors")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+# ---------- Quick info & WhatsApp ----------
+
 @app.route("/api/clear-history", methods=["POST"])
 def clear_history():
     data = request.get_json(silent=True) or {}
@@ -237,7 +364,6 @@ def quick_info(topic):
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
-# ---------- WhatsApp (Twilio) ----------
 # Not rate-limited to avoid Twilio retry loops.
 @app.route("/whatsapp/webhook", methods=["GET", "POST"])
 def whatsapp_webhook():
@@ -287,7 +413,7 @@ def whatsapp_webhook():
             _metrics_inc("wa_success")
             return str(resp), 200, {"Content-Type": "application/xml"}
 
-        if lower in ["clear","reset","नया","नवीन","रीसेट","new"]:
+        if lower in ["clear","reset","नया","नवीन","รีसेट","new"]:
             krishigpt.clear_history(sender)
             msg.body("✅ बातचीत का इतिहास साफ हो गया।\n\n🔄 अब नया सवाल पूछें!")
             _metrics_inc("wa_success")
@@ -342,7 +468,6 @@ def whatsapp_webhook():
         return str(resp), 200, {"Content-Type": "application/xml"}
 
 # ---------- Docs ----------
-
 @app.errorhandler(404)
 def not_found(e):
     return jsonify({"success": False, "error": "Not found"}), 404
@@ -363,6 +488,8 @@ def api_docs():
             "GET /metrics": "Usage counters (protected by METRICS_TOKEN if set)",
             "POST /api/chat": "Web chat API { message, user_id? }",
             "POST /api/chat-secure": "Secure chat API (X-API-Key required if API_SECRET is set)",
+            "POST /api/calc/dose": "Dosage calculator (open)",
+            "POST /api/calc/dose-secure": "Dosage calculator (X-API-Key required if API_SECRET is set)",
             "POST /api/clear-history": "Clear chat history",
             "GET /api/quick-info/<topic>": "Quick info",
             "POST /whatsapp/webhook": "Twilio WhatsApp webhook"
