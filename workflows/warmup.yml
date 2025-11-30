@@ -1,0 +1,31 @@
+name: Warmup ping
+
+on:
+schedule:
+- cron: "*/30 * * * *" # every 30 minutes (tweak to your liking)
+workflow_dispatch: # lets you run it manually from Actions tab
+
+concurrency:
+group: warmup
+cancel-in-progress: true
+
+jobs:
+ping:
+runs-on: ubuntu-latest
+env:
+API_URL: https://krishigpt-6bxy.onrender.com
+steps:
+- name: Ping /health
+run: |
+echo "Pinging $API_URL/health ..."
+# Try up to 3 times (handles cold start)
+for i in 1 2 3; do
+if curl -fsS "$API_URL/health" > /dev/null; then
+echo "Warmup OK"
+exit 0
+fi
+echo "Retry in 10s..."
+sleep 10
+done
+echo "Warmup FAILED"
+exit 1
