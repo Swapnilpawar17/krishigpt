@@ -1,5 +1,5 @@
 # app.py
-# KrishiGPT - Flask Web Application with WhatsApp Integration + Metrics
+# KrishiGPT - Flask Web Application with WhatsApp Integration + Metrics + Secure API
 
 import os
 import uuid
@@ -16,6 +16,7 @@ from twilio.request_validator import RequestValidator
 # Rate limiting
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from functools import wraps
 
 load_dotenv()
 
@@ -95,6 +96,21 @@ try:
 except Exception as e:
     print(f"⚠️ Twilio client not initialized: {e}\n")
 
+# ---------- Helpers ----------
+
+def require_api_key(f):
+    @wraps(f)
+    def _wrap(*args, **kwargs):
+        expected = os.getenv("API_SECRET", "").strip()
+        if not expected:
+            # If no secret configured, allow (so you don't lock yourself out)
+            return f(*args, **kwargs)
+        provided = request.headers.get("X-API-Key", "").strip()
+        if provided != expected:
+            return jsonify({"success": False, "error": "unauthorized"}), 401
+        return f(*args, **kwargs)
+    return _wrap
+
 # ---------- Web ----------
 
 @app.route("/")
@@ -137,7 +153,7 @@ def metrics():
     })
     return jsonify(data)
 
-# ---------- Chat API ----------
+# ---------- Chat API (open; used by your web UI) ----------
 
 @limiter.limit(os.getenv("CHAT_RATE_PER_MIN", "10 per minute") + "; " +
                os.getenv("CHAT_RATE_PER_DAY", "200 per day"))
@@ -158,14 +174,49 @@ def chat():
 
     try:
         logger.info(f"Web chat from {user_id}: {message[:80]}...")
-        response = krishigpt.get_response(user_id, message)
+        answer = krishigpt.get_response(user_id, message)
+        # Add a short disclaimer like WhatsApp does
+        answer += "\n\n---\n⚠️ यह सामान्य सलाह है; स्थानीय लेबल/नियम देखें। संदेह में KVK/कृषि अधिकारी से संपर्क करें।"
         _metrics_inc("chat_success")
-        return jsonify({"success": True, "response": response, "user_id": user_id})
+        return jsonify({"success": True, "response": answer, "user_id": user_id})
     except Exception as e:
         logger.exception("Error in /api/chat")
         _metrics_inc("chat_errors")
         return jsonify({"success": False, "error": str(e)}), 500
 
+# ---------- Chat API (secure; requires X-API-Key) ----------
+
+@require_api_key
+@limiter.limit(os.getenv("CHAT_RATE_PER_MIN", "10 per minute") + "; " +
+               os.getenv("CHAT_RATE_PER_DAY", "200 per day"))
+@app.route("/api/chat-secure", methods=["POST"])
+def chat_secure():
+    # Same logic as /api/chat, but protected by API key
+    _metrics_inc("chat_requests")
+
+    if not krishigpt or not getattr(krishigpt, "ai_ready", True):
+        _metrics_inc("chat_errors")
+        return jsonify({"success": False, "error": "AI Engine not initialized"}), 503
+
+    data = request.get_json(silent=True) or {}
+    user_id = data.get("user_id") or str(uuid.uuid4())
+    message = (data.get("message") or "").strip()
+    if not message:
+        _metrics_inc("chat_errors")
+        return jsonify({"success": False, "error": "Message is required"}), 400
+
+    try:
+        logger.info(f"Secure chat from {user_id}: {message[:80]}...")
+        answer = krishigpt.get_response(user_id, message)
+        answer += "\n\n---\n⚠️ यह सामान्य सलाह है; स्थानीय लेबल/नियम देखें। संदेह में KVK/कृषि अधिकारी से संपर्क करें।"
+        _metrics_inc("chat_success")
+        return jsonify({"success": True, "response": answer, "user_id": user_id})
+    except Exception as e:
+        logger.exception("Error in /api/chat-secure")
+        _metrics_inc("chat_errors")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+# ---------- Quick info ----------
 @app.route("/api/clear-history", methods=["POST"])
 def clear_history():
     data = request.get_json(silent=True) or {}
@@ -311,6 +362,7 @@ def api_docs():
             "GET /healthz": "Health check alias",
             "GET /metrics": "Usage counters (protected by METRICS_TOKEN if set)",
             "POST /api/chat": "Web chat API { message, user_id? }",
+            "POST /api/chat-secure": "Secure chat API (X-API-Key required if API_SECRET is set)",
             "POST /api/clear-history": "Clear chat history",
             "GET /api/quick-info/<topic>": "Quick info",
             "POST /whatsapp/webhook": "Twilio WhatsApp webhook"
