@@ -55,6 +55,34 @@
         <button id="openCalcBtn">🧮 Dosage Calculator</button>
       </div>
 
+      <!-- NEW: Crop & Sowing Date section -->
+      <div style="margin-bottom:10px; padding:8px; border:1px solid #eee; border-radius:8px; background:#f9fafb;">
+        <div style="font-size:13px; font-weight:600; margin-bottom:6px;">
+          🌱 फसल माहिती (Crop Info) – optional but recommended
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <div style="flex:1; min-width:120px;">
+            <label style="font-size:12px; font-weight:500;">फसल (Crop)</label>
+            <select id="cropSelect" style="width:100%; padding:6px; border-radius:6px; border:1px solid #ccc;">
+              <option value="">-- निवडा / Select --</option>
+              <option value="cotton">कापूस (Cotton)</option>
+              <option value="tomato">टोमॅटो (Tomato)</option>
+              <option value="onion">कांदा (Onion)</option>
+              <option value="soybean">सोयाबीन (Soybean)</option>
+            </select>
+          </div>
+          <div style="flex:1; min-width:140px;">
+            <label style="font-size:12px; font-weight:500;">पेरणी तारीख (Sowing Date)</label>
+            <input id="sowingDate" type="date"
+                   style="width:100%; padding:6px; border-radius:6px; border:1px solid #ccc;"/>
+            <div style="font-size:11px; color:#6b7280; margin-top:2px;">
+              Format: YYYY-MM-DD
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- END new crop info section -->
+
       <div id="chat"></div>
       <div class="row">
         <input id="msg" placeholder="अपना सवाल लिखें… (e.g., टमाटर में फलन के समय खाद)"/>
@@ -131,6 +159,8 @@
     const chat = document.getElementById('chat');
     const input = document.getElementById('msg');
     const btn = document.getElementById('send');
+    const cropSelect = document.getElementById('cropSelect');     // NEW
+    const sowingInput = document.getElementById('sowingDate');    // NEW
 
     function addMsg(text, who) {
       const div = document.createElement('div');
@@ -146,11 +176,20 @@
       addMsg(text, 'user');
       input.value = '';
       btn.disabled = true;
+
+      // NEW: read crop & sowing date
+      const crop = cropSelect.value || null;
+      const sowingDate = sowingInput.value || null;
+
+      const payload = { message: text };
+      if (crop) payload.crop = crop;
+      if (sowingDate) payload.sowing_date = sowingDate;
+
       try {
         const res = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: text })
+          body: JSON.stringify(payload)
         });
         const data = await res.json();
         if (data.success) addMsg(data.response, 'bot');

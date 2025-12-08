@@ -43,6 +43,7 @@ uptime_start = time.time()
 redis_metrics = None
 metrics_local = {}
 
+
 def _metrics_inc(key, by=1):
     try:
         if redis_metrics:
@@ -51,6 +52,7 @@ def _metrics_inc(key, by=1):
             metrics_local[key] = metrics_local.get(key, 0) + by
     except Exception:
         metrics_local[key] = metrics_local.get(key, 0) + by
+
 
 def _metrics_get(key):
     try:
@@ -61,6 +63,7 @@ def _metrics_get(key):
         pass
     return int(metrics_local.get(key, 0))
 
+
 def _metrics_snapshot():
     keys = [
         "chat_requests", "chat_success", "chat_errors",
@@ -68,6 +71,7 @@ def _metrics_snapshot():
         "calc_requests", "calc_success", "calc_errors"
     ]
     return {k: _metrics_get(k) for k in keys}
+
 
 # Connect metrics Redis (reuse REDIS_URL)
 if os.getenv("REDIS_URL"):
@@ -113,6 +117,7 @@ def require_api_key(f):
             return jsonify({"success": False, "error": "unauthorized"}), 401
         return f(*args, **kwargs)
     return _wrap
+
 
 def _calc_dose(payload: dict):
     """
@@ -174,9 +179,9 @@ def _calc_dose(payload: dict):
                 tanks_needed = total_water / tank_size
 
     # Round nicely
-    def r(x): 
-        if x is None: return None
-        # for small numbers use 3 decimals, otherwise 2
+    def r(x):
+        if x is None:
+            return None
         return round(float(x), 3 if float(x) < 1 else 2)
 
     result = {
@@ -212,6 +217,7 @@ def home():
     except Exception:
         return jsonify({"service": "KrishiGPT", "message": "Web UI template missing"}), 200
 
+
 @app.route("/health")
 def health():
     return jsonify({
@@ -222,6 +228,7 @@ def health():
         "store_ready": bool(krishigpt and getattr(krishigpt, "kv_ready", False)),
         "whatsapp_ready": twilio_client is not None
     })
+
 
 @app.route("/healthz")
 def healthz():
@@ -263,9 +270,16 @@ def chat():
         _metrics_inc("chat_errors")
         return jsonify({"success": False, "error": "Message is required"}), 400
 
+    # NEW: optional crop & sowing_date for stage-aware answers
+    crop = data.get("crop")           # e.g. "cotton"
+    sowing_date = data.get("sowing_date")  # "YYYY-MM-DD"
+    meta = None
+    if crop or sowing_date:
+        meta = {"crop": crop, "sowing_date": sowing_date}
+
     try:
         logger.info(f"Web chat from {user_id}: {message[:80]}...")
-        answer = krishigpt.get_response(user_id, message)
+        answer = krishigpt.get_response(user_id, message, meta=meta)
         # Add a short disclaimer
         answer += "\n\n---\n⚠️ यह सामान्य सलाह है; स्थानीय लेबल/नियम देखें। संदेह में KVK/कृषि अधिकारी से संपर्क करें।"
         _metrics_inc("chat_success")
@@ -294,9 +308,16 @@ def chat_secure():
         _metrics_inc("chat_errors")
         return jsonify({"success": False, "error": "Message is required"}), 400
 
+    # Also accept meta for secure clients (optional)
+    crop = data.get("crop")
+    sowing_date = data.get("sowing_date")
+    meta = None
+    if crop or sowing_date:
+        meta = {"crop": crop, "sowing_date": sowing_date}
+
     try:
         logger.info(f"Secure chat from {user_id}: {message[:80]}...")
-        answer = krishigpt.get_response(user_id, message)
+        answer = krishigpt.get_response(user_id, message, meta=meta)
         answer += "\n\n---\n⚠️ यह सामान्य सलाह है; स्थानीय लेबल/नियम देखें। संदेह में KVK/कृषि अधिकारी से संपर्क करें।"
         _metrics_inc("chat_success")
         return jsonify({"success": True, "response": answer, "user_id": user_id})
@@ -351,6 +372,7 @@ def clear_history():
     if krishigpt and user_id:
         krishigpt.clear_history(user_id)
     return jsonify({"success": True, "message": "History cleared"})
+
 
 @app.route("/api/quick-info/<topic>")
 def quick_info(topic):
@@ -472,9 +494,11 @@ def whatsapp_webhook():
 def not_found(e):
     return jsonify({"success": False, "error": "Not found"}), 404
 
+
 @app.errorhandler(500)
 def server_error(e):
     return jsonify({"success": False, "error": "Server error"}), 500
+
 
 @app.route("/api/docs")
 def api_docs():
@@ -486,7 +510,7 @@ def api_docs():
             "GET /health": "Health check",
             "GET /healthz": "Health check alias",
             "GET /metrics": "Usage counters (protected by METRICS_TOKEN if set)",
-            "POST /api/chat": "Web chat API { message, user_id? }",
+            "POST /api/chat": "Web chat API { message, user_id?, crop?, sowing_date? }",
             "POST /api/chat-secure": "Secure chat API (X-API-Key required if API_SECRET is set)",
             "POST /api/calc/dose": "Dosage calculator (open)",
             "POST /api/calc/dose-secure": "Dosage calculator (X-API-Key required if API_SECRET is set)",
@@ -495,6 +519,7 @@ def api_docs():
             "POST /whatsapp/webhook": "Twilio WhatsApp webhook"
         }
     })
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
