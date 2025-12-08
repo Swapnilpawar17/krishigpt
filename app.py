@@ -6,6 +6,7 @@ import uuid
 import time
 import math
 import logging
+import json  # NEW
 import redis
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify, render_template, abort
@@ -128,6 +129,8 @@ def _calc_dose(payload: dict):
       - spray_volume_l_per_acre: float (e.g., 200)                            OPTIONAL (needed for acre/area conversions)
       - area_acre: float (default 1.0)                                        OPTIONAL
       - product: str (optional, just echoed back)
+      - farmer: str (optional, for notebook/logging)
+      - crop_note: str (optional, for notebook/logging)
     Output units:
       - ml for ml_* units, g for g_* units
     """
@@ -191,7 +194,10 @@ def _calc_dose(payload: dict):
             "rate": float(rate),
             "tank_size_l": tank_size or None,
             "spray_volume_l_per_acre": spray_vol or None,
-            "area_acre": area
+            "area_acre": area,
+            # NEW: echo farmer info back
+            "farmer": payload.get("farmer"),
+            "crop_note": payload.get("crop_note")
         },
         "results": {
             "per_liter": {"amount": r(per_liter), "unit": amt_unit} if per_liter is not None else None,
@@ -207,6 +213,40 @@ def _calc_dose(payload: dict):
         ]
     }
     return result, None
+
+
+def _log_notebook_event(payload: dict, result: dict):
+    """
+    Store a simple agronomy dosage event in Redis (if available).
+    Uses redis_metrics (same Redis as metrics).
+    Keyed by farmer name or crop_note.
+    """
+    if not redis_metrics:
+        return
+    try:
+        farmer = (payload.get("farmer") or "").strip()
+        crop_note = (payload.get("crop_note") or "").strip()
+        key_id = farmer or crop_note or "unknown"
+        key = f"notebook:{key_id}"
+
+        event = {
+            "ts": int(time.time()),
+            "farmer": farmer or None,
+            "crop_note": crop_note or None,
+            "product": payload.get("product"),
+            "unit": payload.get("unit"),
+            "rate": payload.get("rate"),
+            "tank_size_l": payload.get("tank_size_l"),
+            "spray_volume_l_per_acre": payload.get("spray_volume_l_per_acre"),
+            "area_acre": payload.get("area_acre"),
+            "calc": result.get("results")
+        }
+
+        redis_metrics.rpush(key, json.dumps(event))
+        ttl = int(os.getenv("NOTEBOOK_TTL", "15552000"))  # 180 days
+        redis_metrics.expire(key, ttl)
+    except Exception as e:
+        logger.warning(f"Notebook logging failed: {e}")
 
 # ---------- Web ----------
 
@@ -270,9 +310,9 @@ def chat():
         _metrics_inc("chat_errors")
         return jsonify({"success": False, "error": "Message is required"}), 400
 
-    # NEW: optional crop & sowing_date for stage-aware answers
-    crop = data.get("crop")           # e.g. "cotton"
-    sowing_date = data.get("sowing_date")  # "YYYY-MM-DD"
+    # optional crop & sowing_date for stage-aware answers
+    crop = data.get("crop")
+    sowing_date = data.get("sowing_date")
     meta = None
     if crop or sowing_date:
         meta = {"crop": crop, "sowing_date": sowing_date}
@@ -280,7 +320,6 @@ def chat():
     try:
         logger.info(f"Web chat from {user_id}: {message[:80]}...")
         answer = krishigpt.get_response(user_id, message, meta=meta)
-        # Add a short disclaimer
         answer += "\n\n---\n⚠️ यह सामान्य सलाह है; स्थानीय लेबल/नियम देखें। संदेह में KVK/कृषि अधिकारी से संपर्क करें।"
         _metrics_inc("chat_success")
         return jsonify({"success": True, "response": answer, "user_id": user_id})
@@ -308,7 +347,6 @@ def chat_secure():
         _metrics_inc("chat_errors")
         return jsonify({"success": False, "error": "Message is required"}), 400
 
-    # Also accept meta for secure clients (optional)
     crop = data.get("crop")
     sowing_date = data.get("sowing_date")
     meta = None
@@ -337,6 +375,10 @@ def calc_dose():
         if err:
             _metrics_inc("calc_errors")
             return jsonify({"success": False, "error": err}), 400
+
+        # log notebook event
+        _log_notebook_event(payload, result)
+
         _metrics_inc("calc_success")
         return jsonify({"success": True, "data": result})
     except Exception as e:
@@ -356,6 +398,10 @@ def calc_dose_secure():
         if err:
             _metrics_inc("calc_errors")
             return jsonify({"success": False, "error": err}), 400
+
+        # log notebook event
+        _log_notebook_event(payload, result)
+
         _metrics_inc("calc_success")
         return jsonify({"success": True, "data": result})
     except Exception as e:
@@ -529,4 +575,4 @@ if __name__ == "__main__":
     print(f"📚 API Docs: http://127.0.0.1:{port}/api/docs")
     print(f"💬 WhatsApp Webhook: http://127.0.0.1:{port}/whatsapp/webhook")
     print("=" * 60)
-    app.run(host="0.0.0.0", port=port, debug=True)
+    app.run(host="0.0.0.1", port=port, debug=True)

@@ -30,15 +30,14 @@
     .grid { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
     .grid .full { grid-column: 1 / -1; }
     .hint { color: var(--muted); font-size: 12px; margin-top:4px; }
-    .result { background:#f8fafc; border:1px solid #eee; border-radius:8px; padding:12px; margin-top:12px; position:relative; }
+    .result { background:#f8fafc; border:1px solid #eee; border-radius:8px; padding:12px; margin-top:12px; }
     .close { background:#ef4444; }
     .pill { font-size:12px; padding:4px 8px; border-radius:999px; background:#eef2ff; color:#3730a3; }
     .footer { color:#6b7280; font-size:12px; margin-top:12px; text-align:center; }
     .hr { height:1px; background:#eee; margin: 12px 0; }
     label { font-weight:500; font-size:14px; display:block; margin-bottom:4px; }
-    /* Copy btn */
-    .copy-btn { position: absolute; top:8px; right:8px; font-size:11px; background:#e5e7eb; color:#374151; padding:4px 8px; border-radius:4px; cursor:pointer; }
-    .copy-btn:hover { background:#d1d5db; }
+    .top-actions { display:flex; gap:6px; justify-content:flex-end; margin-bottom:6px; }
+    .top-actions button { padding:4px 8px; font-size:11px; }
 
     @media (max-width: 600px) {
       .grid { grid-template-columns: 1fr; }
@@ -55,7 +54,7 @@
         <button id="openCalcBtn">🧮 Dosage Calculator</button>
       </div>
 
-      <!-- NEW: Crop & Sowing Date section -->
+      <!-- Crop & Sowing Date section -->
       <div style="margin-bottom:10px; padding:8px; border:1px solid #eee; border-radius:8px; background:#f9fafb;">
         <div style="font-size:13px; font-weight:600; margin-bottom:6px;">
           🌱 फसल माहिती (Crop Info) – optional but recommended
@@ -74,14 +73,13 @@
           <div style="flex:1; min-width:140px;">
             <label style="font-size:12px; font-weight:500;">पेरणी तारीख (Sowing Date)</label>
             <input id="sowingDate" type="date"
-                   style="width:100%; padding:6px; border-radius:6px; border:1px solid #ccc;"/>
+                   style="width:100%; padding:6px; border-radius:6px; border:1px solid:#ccc;"/>
             <div style="font-size:11px; color:#6b7280; margin-top:2px;">
               Format: YYYY-MM-DD
             </div>
           </div>
         </div>
       </div>
-      <!-- END new crop info section -->
 
       <div id="chat"></div>
       <div class="row">
@@ -105,9 +103,21 @@
 
       <div class="grid">
         <div class="full">
-          <label>उत्पाद का नाम (Product Name) <span style="font-weight:normal;color:#888">(optional)</span>
-            <input id="c_product" placeholder="e.g., Emamectin 5% SG"/>
+          <label>शेतकरी नाव (Farmer Name) <span style="font-weight:normal;color:#888">(optional)</span>
+            <input id="c_farmer" placeholder="e.g., Pandurang Patil"/>
           </label>
+        </div>
+        <div>
+          <label>मोबाइल (Phone)</label>
+          <input id="c_phone" placeholder="e.g., 98xxxxxx"/>
+        </div>
+        <div>
+          <label>फसल / प्लॉट नोट्स (Crop / Notes)</label>
+          <input id="c_cropnote" placeholder="e.g., Cotton 1 acre, village name"/>
+        </div>
+        <div class="full">
+          <label>उत्पाद का नाम (Product Name)</label>
+          <input id="c_product" placeholder="e.g., Emamectin 5% SG"/>
         </div>
         <div>
           <label>इकाई (Unit)</label>
@@ -159,8 +169,8 @@
     const chat = document.getElementById('chat');
     const input = document.getElementById('msg');
     const btn = document.getElementById('send');
-    const cropSelect = document.getElementById('cropSelect');     // NEW
-    const sowingInput = document.getElementById('sowingDate');    // NEW
+    const cropSelect = document.getElementById('cropSelect');
+    const sowingInput = document.getElementById('sowingDate');
 
     function addMsg(text, who) {
       const div = document.createElement('div');
@@ -177,10 +187,8 @@
       input.value = '';
       btn.disabled = true;
 
-      // NEW: read crop & sowing date
       const crop = cropSelect.value || null;
       const sowingDate = sowingInput.value || null;
-
       const payload = { message: text };
       if (crop) payload.crop = crop;
       if (sowingDate) payload.sowing_date = sowingDate;
@@ -219,7 +227,9 @@
     window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeCalc(); });
 
     function val(id) {
-      const v = document.getElementById(id).value.trim();
+      const el = document.getElementById(id);
+      if (!el) return null;
+      const v = el.value.trim();
       return v === '' ? null : v;
     }
     function num(v) {
@@ -234,13 +244,10 @@
       return n < 1 ? n.toFixed(3) : n.toFixed(2);
     }
 
-    // Copy result logic
     window.copyResult = function() {
       const text = document.getElementById('resultText').innerText;
       navigator.clipboard.writeText(text).then(() => {
-        const b = document.getElementById('copyBtn');
-        b.textContent = 'Copied!';
-        setTimeout(() => b.textContent = 'Copy', 1500);
+        alert('Copied to clipboard.');
       });
     };
 
@@ -249,21 +256,35 @@
       const perL = r.per_liter ? `${fmt(r.per_liter.amount)} ${r.per_liter.unit}` : '-';
       const perT = r.per_tank ? `${fmt(r.per_tank.amount)} ${r.per_tank.unit}` : '-';
       const perA = r.per_acre ? `${fmt(r.per_acre.amount)} ${r.per_acre.unit}` : '-';
-      const total = r.area_total ? `${fmt(r.area_total.amount)} ${ (r.per_liter?.unit || r.per_acre?.unit || '') }` : '-';
+      const total = r.area_total ? `${fmt(r.area_total.amount)} ${(r.per_liter?.unit || r.per_acre?.unit || '')}` : '-';
       const water = r.total_water_l != null ? `${fmt(r.total_water_l)} L` : '-';
       const tanks = r.tanks_needed != null ? fmt(r.tanks_needed) : '-';
 
-      const resultText = `Product: ${data.input?.product || 'N/A'}
+      const farmer = data.input?.farmer || '';
+      const phone = data.input?.phone || '';
+      const cropNote = data.input?.crop_note || '';
+      const area = data.input?.area_acre ?? '-';
+
+      const resultText = 
+`शेतकरी: ${farmer || '-'}
+मोबाइल: ${phone || '-'}
+फसल/नोट्स: ${cropNote || '-'}
+
+क्षेत्र: ${area} एकर
+उत्पाद: ${data.input?.product || 'N/A'}
+
 Per Liter: ${perL}
 Per Tank: ${perT}
 Per Acre: ${perA}
-Total (${data.input.area_acre} acre): ${total}
-Water needed: ${water}
-Tanks needed: ${tanks}`;
+Total (${area} acre): ${total}
+पाण्याची गरज: ${water}
+टँकची गरज: ${tanks}`;
 
       calcOut.innerHTML = `
-        <div id="copyBtn" class="copy-btn" onclick="copyResult()">Copy</div>
-        <div id="resultText" style="font-family:monospace; white-space:pre-wrap; font-size:13px; line-height:1.5;">${resultText}</div>
+        <div class="top-actions">
+          <button onclick="copyResult()">Copy</button>
+        </div>
+        <pre id="resultText" style="font-family:monospace; white-space:pre-wrap; font-size:13px; line-height:1.5;">${resultText}</pre>
         <div class="hint" style="margin-top:8px;">
           • Always follow label (हमेशा लेबल देखें)<br/>
           • PHI/REI and PPE mandatory
@@ -273,17 +294,20 @@ Tanks needed: ${tanks}`;
     }
 
     calcBtn.addEventListener('click', async () => {
-      const payload = {};
       const product = val('c_product');
       const unit = val('c_unit');
       const rate = num(val('c_rate'));
       const tank = num(val('c_tank'));
       const spray = num(val('c_spray'));
       const area = num(val('c_area'));
+      const farmer = val('c_farmer');
+      const phone = val('c_phone');
+      const cropNote = val('c_cropnote');
 
       if (!unit) { alert('Please select unit (इकाई चुनें)'); return; }
       if (rate == null) { alert('Please enter rate (दर भरें)'); return; }
 
+      const payload = {};
       payload.unit = unit;
       payload.rate = rate;
       if (product) payload.product = product;
@@ -298,9 +322,17 @@ Tanks needed: ${tanks}`;
         if (API_KEY) headers['X-API-Key'] = API_KEY;
 
         const res = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify(payload) });
-        const data = await res.json();
-        if (!res.ok || !data.success) throw new Error(data.error || ('HTTP '+res.status));
-        renderResult(data.data);
+        const raw = await res.json();
+        if (!res.ok || !raw.success) throw new Error(raw.error || ('HTTP '+res.status));
+        const data = raw.data;
+
+        // attach farmer info locally for slip
+        if (!data.input) data.input = {};
+        if (farmer) data.input.farmer = farmer;
+        if (phone) data.input.phone = phone;
+        if (cropNote) data.input.crop_note = cropNote;
+
+        renderResult(data);
       } catch (e) {
         calcOut.style.display = 'block';
         calcOut.innerHTML = `<span style="color:#b91c1c">Error: ${e.message || e}</span>`;

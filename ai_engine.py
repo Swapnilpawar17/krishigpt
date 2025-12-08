@@ -6,8 +6,55 @@ import json
 import time
 import logging
 import redis
+from datetime import datetime, date
 from dotenv import load_dotenv
 from groq import Groq
+
+# Simple crop stage rules (DAS = days after sowing)
+# You can refine ranges later.
+STAGE_RULES = {
+    "cotton": [
+        (0, 20, "अंकुरण / उगवण"),
+        (21, 45, "वाढीची अवस्था"),
+        (46, 80, "फुलोरा / चौकट"),
+        (81, 130, "बॉल विकास"),
+        (131, 999, "कापणी जवळ")
+    ],
+    "tomato": [
+        (0, 20, "रोपांची वाढ / रोपवाटिका"),
+        (21, 40, "रोपांची वाढ / फुटवे"),
+        (41, 70, "फुलोरा"),
+        (71, 110, "फळ विकास"),
+        (111, 999, "कापणी जवळ")
+    ],
+    "onion": [
+        (0, 25, "अंकुरण / रोप वाढ"),
+        (26, 50, "वाढीची अवस्था"),
+        (51, 80, "कंद विकास"),
+        (81, 999, "कापणी जवळ")
+    ],
+    "soybean": [
+        (0, 15, "अंकुरण / उगवण"),
+        (16, 35, "शाकीय वाढ"),
+        (36, 65, "फुलोरा / फळधारणा"),
+        (66, 999, "शेंगा भरणे / कापणी जवळ")
+    ]
+    # You can add more crops later.
+}
+
+
+def parse_date_str(date_str: str):
+    """Try to parse sowing date from common formats."""
+    if not date_str:
+        return None
+    date_str = date_str.strip()
+    for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(date_str, fmt).date()
+        except ValueError:
+            continue
+    return None
+
 
 # Logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -15,6 +62,7 @@ logger = logging.getLogger(__name__)
 
 # Env
 load_dotenv()
+
 
 class KrishiGPT:
     """
@@ -57,6 +105,8 @@ class KrishiGPT:
                 print("✅ Redis connected")
             except Exception as e:
                 print(f"⚠️ Redis not available: {e}")
+                self.redis = None
+                self.kv_ready = False
 
         # Mark AI ready after a quick ping
         self.ai_ready = True
@@ -140,7 +190,7 @@ class KrishiGPT:
             "मुरझा","धब्बे","छेद","सड़","disease","pest","treatment","yellow","dry","rot",
             "अळी","माशी","किडा"
         ]
-        fertilizer_keywords = ["खाद","उर्वरक","fertilizer","यूरिया","dap","npk","पोषक","nutrient","खत","मात्रा","कितना"]
+        fertilizer_keywords = ["खाद","উర్వরक","fertilizer","यूरिया","dap","npk","पोषक","nutrient","खत","मात्रा","कितना"]
         scheme_keywords = ["योजना","scheme","सरकारी","government","सब्सिडी","pm-kisan","बीमा","kcc","क्रेडिट","loan"]
         irrigation_keywords = ["सिंचाई","पानी","water","irrigation","ड्रिप","drip","स्प्रिंकलर"]
 
@@ -189,23 +239,64 @@ class KrishiGPT:
 
         return "\n".join(parts) if parts else ""
 
+    # -------- Stage helper --------
+    def _get_stage_info(self, crop_key: str, sowing_date_str: str):
+        """
+        Compute approximate crop stage based on sowing date and simple DAS rules.
+        crop_key: internal crop key (e.g., "cotton", "tomato")
+        sowing_date_str: string date, e.g. "2025-06-15" or "15-06-2025"
+        """
+        if not crop_key or not sowing_date_str:
+            return None
+
+        crop_key = str(crop_key).lower()
+        rules = STAGE_RULES.get(crop_key)
+        if not rules:
+            return None
+
+        sow_date = parse_date_str(sowing_date_str)
+        if not sow_date:
+            return None
+
+        today = date.today()
+        das = (today - sow_date).days
+        if das < 0:
+            return None
+
+        stage_label = "अवस्था (अंदाजे)"
+        for start, end, label in rules:
+            if start <= das <= end:
+                stage_label = label
+                break
+
+        return {"crop": crop_key, "das": das, "label": stage_label}
+
     # ---------------- Redis helpers ----------------
     def _conv_key(self, user_id):
         return f"conv:{user_id}"
 
     def _get_history(self, user_id):
         if self.redis:
-            s = self.redis.get(self._conv_key(user_id))
-            return json.loads(s) if s else []
+            try:
+                s = self.redis.get(self._conv_key(user_id))
+                return json.loads(s) if s else []
+            except Exception as e:
+                logger.warning(f"Redis get failed, falling back to memory: {e}")
+                self.redis = None
+                self.kv_ready = False
         return self.conversations.get(user_id, [])
 
     def _set_history(self, user_id, msgs):
         msgs = msgs[-20:]  # keep last 20
         if self.redis:
-            self.redis.setex(self._conv_key(user_id), self.history_ttl, json.dumps(msgs))
-        else:
-            self.conversations[user_id] = msgs
-
+            try:
+                self.redis.setex(self._conv_key(user_id), self.history_ttl, json.dumps(msgs))
+                return
+            except Exception as e:
+                logger.warning(f"Redis set failed, falling back to memory: {e}")
+                self.redis = None
+                self.kv_ready = False
+        self.conversations[user_id] = msgs
     def _clear_history(self, user_id):
         if self.redis:
             self.redis.delete(self._conv_key(user_id))
@@ -213,18 +304,40 @@ class KrishiGPT:
             self.conversations.pop(user_id, None)
 
     # ---------------- Public API ----------------
-    def get_response(self, user_id, query, max_retries=3):
+    def get_response(self, user_id, query, max_retries=3, meta=None):
         logger.info(f"User {user_id}: {query[:50]}...")
         history = self._get_history(user_id)
 
+        # --- Stage text (optional) ---
+        stage_text = ""
+        if meta and isinstance(meta, dict):
+            crop_key = meta.get("crop_key") or meta.get("crop")
+            sowing_date = meta.get("sowing_date")
+            stage_info = self._get_stage_info(crop_key, sowing_date)
+            # fallback: detect crop from query if not provided
+            if not stage_info and sowing_date:
+                detected_crop, _ = self._detect_crop(query)
+                if detected_crop:
+                    stage_info = self._get_stage_info(detected_crop, sowing_date)
+            if stage_info:
+                stage_text = (
+                    f"\n\n--- 🌱 फसल की अवस्था ---\n"
+                    f"सध्या अंदाजे {stage_info['das']} दिवस झाले आहेत (DAS). "
+                    f"अवस्था: {stage_info['label']}."
+                )
+
         crop_context = self._get_relevant_context(query)
         enhanced_prompt = self.system_prompt
+
+        if stage_text:
+            enhanced_prompt += stage_text
+
         if crop_context:
             enhanced_prompt += f"\n\n--- 📚 संबंधित जानकारी (Knowledge Base से) ---\n{crop_context}"
             enhanced_prompt += "\n\n--- ⚠️ निर्देश ---\nऊपर दी गई जानकारी का उपयोग करके सुरक्षित, व्यावहारिक जवाब दो।"
 
         messages = [{"role": "system", "content": enhanced_prompt}]
-        messages.extend(history[-10:])
+        messages.extend(history[-20:])  # last 20 messages
         messages.append({"role": "user", "content": query})
 
         for attempt in range(max_retries):
@@ -255,9 +368,16 @@ class KrishiGPT:
                     return ("❌ माफ करें, तकनीकी समस्या है। कृपया थोड़ी देर बाद प्रयास करें। 🙏\n"
                             "अगर समस्या बनी रहे तो किसान कॉल सेंटर पर कॉल करें: 1551")
 
-    def clear_history(self, user_id):
-        self._clear_history(user_id)
-        return True
+    def _clear_history(self, user_id):
+        if self.redis:
+            try:
+                self.redis.delete(self._conv_key(user_id))
+                return
+            except Exception as e:
+                logger.warning(f"Redis delete failed, falling back to memory: {e}")
+                self.redis = None
+                self.kv_ready = False
+        self.conversations.pop(user_id, None)
 
     def get_quick_info(self, topic):
         topic_lower = topic.lower()
@@ -275,10 +395,11 @@ class KrishiGPT:
             if contacts:
                 result = "📞 **महत्वपूर्ण हेल्पलाइन:**\n\n"
                 result += f"🌾 किसान कॉल सेंटर: {contacts.get('kisan_call_center', 'N/A')}\n"
-                result += f"🔬 कृषि विज्ञान केंद्र: {contacts.get('krishi_vigyan_kेंद्र', 'N/A')}\n"
+                result += f"🔬 कृषि विज्ञान केंद्र: {contacts.get('krishi_vigyan_kendra', 'N/A')}\n"
                 result += f"📱 PM-KISAN हेल्पलाइन: {contacts.get('pm_kisan_helpline', 'N/A')}\n"
                 return result
         return None
+
 
 # Local test runner
 if __name__ == "__main__":
@@ -286,6 +407,10 @@ if __name__ == "__main__":
     print("🌾 KrishiGPT - AI Agricultural Advisor")
     print("=" * 60)
     bot = KrishiGPT()
+
+    # Optional: quick stage test
+    meta_example = {"crop": "cotton", "sowing_date": "01-10-2025"}  # adjust date as needed
+
     qs = [
         "टमाटर की पत्तियां पीली हो रही हैं, क्या करूं?",
         "कपास में गुलाबी सुंडी का इलाज बताओ",
@@ -295,5 +420,6 @@ if __name__ == "__main__":
     ]
     for i, q in enumerate(qs, 1):
         print(f"\n[{i}] {q}")
-        print(bot.get_response(f"test_user_{i}", q))
+        # pass meta only if you want stage info; otherwise just bot.get_response(..., q)
+        print(bot.get_response(f"test_user_{i}", q, meta=meta_example if i == 2 else None))
         time.sleep(0.5)
