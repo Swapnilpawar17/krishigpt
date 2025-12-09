@@ -6,7 +6,7 @@ import uuid
 import time
 import math
 import logging
-import json  # NEW
+import json   # NEW
 import redis
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify, render_template, abort
@@ -129,8 +129,8 @@ def _calc_dose(payload: dict):
       - spray_volume_l_per_acre: float (e.g., 200)                            OPTIONAL (needed for acre/area conversions)
       - area_acre: float (default 1.0)                                        OPTIONAL
       - product: str (optional, just echoed back)
-      - farmer: str (optional, for notebook/logging)
-      - crop_note: str (optional, for notebook/logging)
+      - farmer: str (optional, for logging)
+      - crop_note: str (optional, for logging)
     Output units:
       - ml for ml_* units, g for g_* units
     """
@@ -195,7 +195,7 @@ def _calc_dose(payload: dict):
             "tank_size_l": tank_size or None,
             "spray_volume_l_per_acre": spray_vol or None,
             "area_acre": area,
-            # NEW: echo farmer info back
+            # echo farmer info
             "farmer": payload.get("farmer"),
             "crop_note": payload.get("crop_note")
         },
@@ -310,7 +310,6 @@ def chat():
         _metrics_inc("chat_errors")
         return jsonify({"success": False, "error": "Message is required"}), 400
 
-    # optional crop & sowing_date for stage-aware answers
     crop = data.get("crop")
     sowing_date = data.get("sowing_date")
     meta = None
@@ -376,7 +375,6 @@ def calc_dose():
             _metrics_inc("calc_errors")
             return jsonify({"success": False, "error": err}), 400
 
-        # log notebook event
         _log_notebook_event(payload, result)
 
         _metrics_inc("calc_success")
@@ -399,7 +397,6 @@ def calc_dose_secure():
             _metrics_inc("calc_errors")
             return jsonify({"success": False, "error": err}), 400
 
-        # log notebook event
         _log_notebook_event(payload, result)
 
         _metrics_inc("calc_success")
@@ -409,7 +406,7 @@ def calc_dose_secure():
         _metrics_inc("calc_errors")
         return jsonify({"success": False, "error": str(e)}), 500
 
-# ---------- Quick info & WhatsApp ----------
+# ---------- Quick info & Notebook & WhatsApp ----------
 
 @app.route("/api/clear-history", methods=["POST"])
 def clear_history():
@@ -431,18 +428,18 @@ def quick_info(topic):
         return jsonify({"success": False, "error": "Topic not found"}), 404
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
-    
+
+
 @app.route("/notebook", methods=["GET"])
 def notebook_view():
     """
-    Simple notebook viewer.
+    Notebook viewer (JSON).
     Usage: /notebook?id=<farmer-name-or-crop-note>
-    Returns JSON list of dosage events.
     """
     if not redis_metrics:
         return jsonify({
             "success": False,
-            "error": "Notebook not available (no Redis configured on this environment)."
+            "error": "Notebook not available (no Redis configured)."
         }), 503
 
     key_id = (request.args.get("id") or "").strip()
@@ -596,6 +593,7 @@ def api_docs():
             "POST /api/calc/dose-secure": "Dosage calculator (X-API-Key required if API_SECRET is set)",
             "POST /api/clear-history": "Clear chat history",
             "GET /api/quick-info/<topic>": "Quick info",
+            "GET /notebook?id=...": "Notebook view (JSON events by farmer/crop_note)",
             "POST /whatsapp/webhook": "Twilio WhatsApp webhook"
         }
     })
