@@ -431,6 +431,40 @@ def quick_info(topic):
         return jsonify({"success": False, "error": "Topic not found"}), 404
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    
+@app.route("/notebook", methods=["GET"])
+def notebook_view():
+    """
+    Simple notebook viewer.
+    Usage: /notebook?id=<farmer-name-or-crop-note>
+    Returns JSON list of dosage events.
+    """
+    if not redis_metrics:
+        return jsonify({
+            "success": False,
+            "error": "Notebook not available (no Redis configured on this environment)."
+        }), 503
+
+    key_id = (request.args.get("id") or "").strip()
+    if not key_id:
+        return jsonify({
+            "success": False,
+            "error": "Missing 'id' query parameter. Use /notebook?id=<farmer-or-crop-note>."
+        }), 400
+
+    key = f"notebook:{key_id}"
+    try:
+        raw = redis_metrics.lrange(key, 0, -1)
+        events = [json.loads(e) for e in raw]
+        return jsonify({
+            "success": True,
+            "id": key_id,
+            "count": len(events),
+            "events": events
+        })
+    except Exception as e:
+        logger.exception("Error in /notebook")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 # Not rate-limited to avoid Twilio retry loops.
 @app.route("/whatsapp/webhook", methods=["GET", "POST"])
@@ -575,4 +609,4 @@ if __name__ == "__main__":
     print(f"📚 API Docs: http://127.0.0.1:{port}/api/docs")
     print(f"💬 WhatsApp Webhook: http://127.0.0.1:{port}/whatsapp/webhook")
     print("=" * 60)
-    app.run(host="0.0.0.1", port=port, debug=True)
+    app.run(host="0.0.0.0", port=port, debug=True)
