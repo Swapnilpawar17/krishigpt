@@ -73,7 +73,7 @@
           <div style="flex:1; min-width:140px;">
             <label style="font-size:12px; font-weight:500;">पेरणी तारीख (Sowing Date)</label>
             <input id="sowingDate" type="date"
-                   style="width:100%; padding:6px; border-radius:6px; border:1px solid:#ccc;"/>
+                   style="width:100%; padding:6px; border-radius:6px; border:1px solid #ccc;"/>
             <div style="font-size:11px; color:#6b7280; margin-top:2px;">
               Format: YYYY-MM-DD
             </div>
@@ -107,11 +107,7 @@
             <input id="c_farmer" placeholder="e.g., Pandurang Patil"/>
           </label>
         </div>
-        <div>
-          <label>मोबाइल (Phone)</label>
-          <input id="c_phone" placeholder="e.g., 98xxxxxx"/>
-        </div>
-        <div>
+        <div class="full">
           <label>फसल / प्लॉट नोट्स (Crop / Notes)</label>
           <input id="c_cropnote" placeholder="e.g., Cotton 1 acre, village name"/>
         </div>
@@ -162,7 +158,6 @@
   </div>
 
   <script>
-    // If using secure endpoint, set API_KEY here.
     const API_KEY = ""; 
 
     // Chat logic
@@ -261,13 +256,11 @@
       const tanks = r.tanks_needed != null ? fmt(r.tanks_needed) : '-';
 
       const farmer = data.input?.farmer || '';
-      const phone = data.input?.phone || '';
       const cropNote = data.input?.crop_note || '';
       const area = data.input?.area_acre ?? '-';
 
       const resultText = 
 `शेतकरी: ${farmer || '-'}
-मोबाइल: ${phone || '-'}
 फसल/नोट्स: ${cropNote || '-'}
 
 क्षेत्र: ${area} एकर
@@ -301,7 +294,6 @@ Total (${area} acre): ${total}
       const spray = num(val('c_spray'));
       const area = num(val('c_area'));
       const farmer = val('c_farmer');
-      const phone = val('c_phone');
       const cropNote = val('c_cropnote');
 
       if (!unit) { alert('Please select unit (इकाई चुनें)'); return; }
@@ -314,6 +306,8 @@ Total (${area} acre): ${total}
       if (tank != null) payload.tank_size_l = tank;
       if (spray != null) payload.spray_volume_l_per_acre = spray;
       if (area != null) payload.area_acre = area;
+      if (farmer) payload.farmer = farmer;
+      if (cropNote) payload.crop_note = cropNote;
 
       calcBtn.disabled = true; calcBtn.textContent = 'Calculating...';
       try {
@@ -329,7 +323,6 @@ Total (${area} acre): ${total}
         // attach farmer info locally for slip
         if (!data.input) data.input = {};
         if (farmer) data.input.farmer = farmer;
-        if (phone) data.input.phone = phone;
         if (cropNote) data.input.crop_note = cropNote;
 
         renderResult(data);
