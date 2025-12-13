@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>KrishiGPT - Retailer Edition</title>
+  <title>KrishiGPT - Retailer CRM Edition</title>
   <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
   <style>
     :root { --green:#2f855a; --muted:#6b7280; --bg:#f7faf7; }
@@ -62,6 +62,17 @@
     .top-actions { display:flex; gap:6px; justify-content:flex-end; margin-bottom:6px; }
     .top-actions button { padding:4px 8px; font-size:11px; }
 
+    /* History List Styling */
+    .hist-item { padding: 8px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+    .hist-item:last-child { border-bottom: none; }
+    .hist-info { flex: 1; }
+    .hist-name { font-weight: bold; color: #333; }
+    .hist-prod { color: #666; font-size: 11px; }
+    .hist-actions { display: flex; gap: 5px; }
+    .btn-icon { padding: 4px 6px; font-size: 12px; border-radius: 4px; cursor: pointer; text-decoration: none; border:none; color:white; }
+    .btn-wa { background: #25D366; }
+    .btn-wa:hover { background: #1ebc57; }
+
     @media (max-width: 600px) {
       .grid { grid-template-columns: 1fr; }
     }
@@ -71,9 +82,9 @@
   <div class="container">
     <div class="card">
       <h1>🌾 KrishiGPT</h1>
-      <p class="sub">AI कृषि सलाह — चैट + 🧮 डोज़ कैलकुलेटर</p>
+      <p class="sub">AI कृषि सलाह + 🧮 डोज़ कैलकुलेटर + CRM</p>
 
-      <!-- NEW: Retailer Branding Section -->
+      <!-- RETAILER BRANDING SECTION -->
       <div class="retailer-section">
         <div class="retailer-header">
           <div>
@@ -96,7 +107,7 @@
         <button id="openCalcBtn">🧮 Dosage Calculator</button>
       </div>
 
-      <!-- Crop & Sowing Date section -->
+      <!-- CROP INFO SECTION -->
       <div style="margin-bottom:10px; padding:8px; border:1px solid #eee; border-radius:8px; background:#f9fafb;">
         <div style="font-size:13px; font-weight:600; margin-bottom:6px;">
           🌱 फसल माहिती (Crop Info) – optional but recommended
@@ -138,18 +149,18 @@
     </div>
   </div>
 
-  <!-- Modal: Dosage Calculator -->
+  <!-- MODAL: DOSAGE CALCULATOR + CRM -->
   <div id="calcModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="calcTitle">
     <div class="box">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
-        <h3 id="calcTitle" style="margin:0;">🧮 डोज़ कैलकुलेटर (Dosage)</h3>
+        <h3 id="calcTitle" style="margin:0;">🧮 डोज़ कैलकुलेटर</h3>
         <button id="closeCalcBtn" class="close">✕</button>
       </div>
       <div class="hr"></div>
 
       <div class="grid">
         <div class="full">
-          <label>शेतकरी नाव (Farmer Name) <span style="font-weight:normal;color:#888">(optional)</span>
+          <label>शेतकरी नाव (Farmer Name) <span style="font-weight:normal;color:#888">(required for history)</span>
             <input id="c_farmer" placeholder="e.g., Pandurang Patil"/>
           </label>
         </div>
@@ -197,6 +208,17 @@
         </div>
       </div>
 
+      <!-- HISTORY / MINI-CRM SECTION -->
+      <div class="hr"></div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h4 style="margin:0; color:#166534;">📜 Recent Customers (ग्राहक लिस्ट)</h4>
+        <button onclick="clearHistory()" style="font-size:11px; background:#ef4444; color:white; border:none; border-radius:4px; padding:2px 8px; cursor:pointer;">Clear</button>
+      </div>
+      
+      <div id="historyList" style="max-height: 150px; overflow-y: auto; border:1px solid #eee; border-radius:6px; font-size:12px;">
+        <!-- History items inserted via JS -->
+      </div>
+
       <div class="footer">
         नोट: हमेशा उत्पाद लेबल/स्थानीय नियमों का पालन करें। PHI/REI और PPE ज़रूरी है।
       </div>
@@ -206,7 +228,7 @@
   <script>
     const API_KEY = ""; 
 
-    // --- RETAILER BRANDING LOGIC ---
+    // --- RETAILER BRANDING ---
     document.addEventListener('DOMContentLoaded', function() {
         const savedName = localStorage.getItem('krishiShopName');
         const savedPhone = localStorage.getItem('krishiShopPhone');
@@ -217,6 +239,9 @@
         } else {
             document.getElementById('shopDisplay').textContent = 'Setup your shop details to brand messages.';
         }
+        
+        // Load History
+        renderHistory();
     });
 
     function toggleShopSettings() {
@@ -232,7 +257,7 @@
             localStorage.setItem('krishiShopPhone', phone);
             updateShopDisplay(name, phone);
             toggleShopSettings();
-            alert('Shop details saved! Messages will now be branded.');
+            alert('Shop details saved!');
         } else {
             alert('Please enter a shop name.');
         }
@@ -258,10 +283,9 @@ ${adviceText}
 ✅ *Verified by KrishiGPT*
 💊 _दवाई वापरताना काळजी घ्या._
 `.trim();
-        
         return `https://wa.me/?text=${encodeURIComponent(message)}`;
     }
-    // -----------------------------
+    // -----------------------
 
     // Chat logic
     const chat = document.getElementById('chat');
@@ -275,7 +299,6 @@ ${adviceText}
       div.className = 'msg ' + (who === 'user' ? 'user' : 'bot');
       div.textContent = text;
       
-      // If message is from BOT, add Share Button
       if (who === 'bot') {
         const shareBtn = document.createElement('a');
         shareBtn.className = 'share-btn';
@@ -438,12 +461,16 @@ Total (${area} acre): ${total}
         if (!res.ok || !raw.success) throw new Error(raw.error || ('HTTP '+res.status));
         const data = raw.data;
 
-        // attach farmer info locally for slip
+        // attach info
         if (!data.input) data.input = {};
         if (farmer) data.input.farmer = farmer;
         if (cropNote) data.input.crop_note = cropNote;
 
         renderResult(data);
+        
+        // SAVE TO CRM
+        addToHistory(farmer, product, cropNote);
+        
       } catch (e) {
         calcOut.style.display = 'block';
         calcOut.innerHTML = `<span style="color:#b91c1c">Error: ${e.message || e}</span>`;
@@ -451,6 +478,72 @@ Total (${area} acre): ${total}
         calcBtn.disabled = false; calcBtn.textContent = 'Calculate (गणना करें)';
       }
     });
+
+    // --- CRM / HISTORY LOGIC ---
+    function addToHistory(name, product, note) {
+        if (!name && !product) return; 
+        
+        const entry = {
+            id: Date.now(),
+            date: new Date().toLocaleDateString('en-IN'),
+            name: name || 'Unknown Farmer',
+            product: product || 'General Advice',
+            note: note || ''
+        };
+
+        let history = JSON.parse(localStorage.getItem('krishiHistory') || '[]');
+        history.unshift(entry);
+        if (history.length > 20) history.pop();
+        localStorage.setItem('krishiHistory', JSON.stringify(history));
+        renderHistory();
+    }
+
+    function renderHistory() {
+        const list = document.getElementById('historyList');
+        const history = JSON.parse(localStorage.getItem('krishiHistory') || '[]');
+        
+        if (history.length === 0) {
+            list.innerHTML = '<div style="padding:10px; text-align:center; color:#888;">No customers yet. Calculate to save.</div>';
+            return;
+        }
+
+        list.innerHTML = history.map(item => `
+            <div class="hist-item">
+                <div class="hist-info">
+                    <div class="hist-name">${item.name} <span style="font-weight:normal; color:#888; font-size:10px;">(${item.date})</span></div>
+                    <div class="hist-prod">${item.product}</div>
+                </div>
+                <div class="hist-actions">
+                    <button class="btn-icon btn-wa" onclick="sendFollowUp('${item.product}', '${item.name}')" title="Send Follow-up">
+                        📢 Follow-up
+                    </button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function sendFollowUp(product, name) {
+        const shopName = localStorage.getItem('krishiShopName') || "Krishi Seva";
+        const text = `
+नमस्कार ${name} जी! 🙏
+From: *${shopName}*
+
+काही दिवसांपूर्वी तुम्ही *${product}* घेऊन गेला होतात.
+फरक पडला का? पिकाला आराम आहे ना?
+काही अडचण असल्यास दुकानात या किंवा कॉल करा.
+
+-- ${shopName} Care Team
+`.trim();
+        const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+        window.open(url, '_blank');
+    }
+
+    function clearHistory() {
+        if(confirm('Clear all customer history?')) {
+            localStorage.removeItem('krishiHistory');
+            renderHistory();
+        }
+    }
   </script>
 </body>
 </html>
