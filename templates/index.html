@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>KrishiGPT</title>
+  <title>KrishiGPT - Retailer Edition</title>
   <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
   <style>
     :root { --green:#2f855a; --muted:#6b7280; --bg:#f7faf7; }
@@ -12,17 +12,40 @@
     .card { background: #fff; border-radius: 10px; padding: 16px; box-shadow: 0 2px 10px rgba(0,0,0,.06); }
     h1 { margin: 0 0 8px 0; }
     .sub { color: var(--muted); margin: 0 0 16px 0; }
+    
+    /* Retailer Branding Section */
+    .retailer-section { background: #f0fdf4; border-left: 4px solid var(--green); padding: 12px; margin-bottom: 15px; border-radius: 4px; }
+    .retailer-header { display: flex; justify-content: space-between; align-items: center; }
+    .retailer-title { font-weight: bold; color: #166534; font-size: 14px; }
+    .retailer-toggle { color: var(--green); text-decoration: underline; cursor: pointer; font-size: 12px; background: none; border: none; padding: 0; }
+    .retailer-form { display: none; margin-top: 10px; }
+    .retailer-form.show { display: block; }
+    .retailer-display { font-size: 13px; font-weight: bold; color: #15803d; margin-top: 5px; }
+
     /* Chat */
     #chat { max-height: 55vh; overflow: auto; padding: 8px; border: 1px solid #eee; border-radius: 8px; background:#fafafa; }
-    .msg { padding: 10px 12px; margin: 8px 0; border-radius: 8px; white-space: pre-wrap; }
+    .msg { padding: 10px 12px; margin: 8px 0; border-radius: 8px; white-space: pre-wrap; position: relative; }
     .user { background: #e8f0fe; text-align: right; }
     .bot { background: #e7f7e7; }
+    
+    /* WhatsApp Share Button */
+    .share-btn { 
+      display: inline-flex; align-items: center; gap: 5px;
+      margin-top: 8px; padding: 6px 12px; 
+      background: #25D366; color: white; 
+      font-size: 12px; font-weight: bold; 
+      border-radius: 20px; text-decoration: none; 
+      border: none; cursor: pointer; 
+    }
+    .share-btn:hover { background: #1ebc57; }
+
     .row { display: flex; gap: 8px; margin-top: 12px; }
     input, select { flex: 1; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-size:14px; width:100%; box-sizing:border-box; }
     button { padding: 10px 14px; border: 0; border-radius: 6px; background: var(--green); color:#fff; cursor: pointer; white-space:nowrap; }
     button.secondary { background:#1f2937; }
     button:disabled { background:#9aa5b1; cursor:not-allowed; }
     .toolbar { display:flex; gap:8px; margin-bottom:10px; flex-wrap: wrap; }
+    
     /* Modal */
     .modal { position: fixed; inset:0; background: rgba(0,0,0,.45); display:none; align-items: center; justify-content: center; padding: 16px; z-index:999; }
     .modal.show { display:flex; }
@@ -50,6 +73,25 @@
       <h1>🌾 KrishiGPT</h1>
       <p class="sub">AI कृषि सलाह — चैट + 🧮 डोज़ कैलकुलेटर</p>
 
+      <!-- NEW: Retailer Branding Section -->
+      <div class="retailer-section">
+        <div class="retailer-header">
+          <div>
+            <div class="retailer-title">🏪 दुकानदार सेटिंग (Retailer Mode)</div>
+            <div id="shopDisplay" class="retailer-display"></div>
+          </div>
+          <button class="retailer-toggle" onclick="toggleShopSettings()">⚙️ Setup</button>
+        </div>
+        
+        <div id="shopSettings" class="retailer-form">
+          <div class="grid" style="grid-template-columns: 1fr; gap: 8px;">
+            <input type="text" id="shopNameInput" placeholder="Enter Shop Name (e.g. Patil Krishi Seva)">
+            <input type="text" id="shopPhoneInput" placeholder="Mobile Number (e.g. 98220xxxxx)">
+            <button onclick="saveShopDetails()">Save Details</button>
+          </div>
+        </div>
+      </div>
+
       <div class="toolbar">
         <button id="openCalcBtn">🧮 Dosage Calculator</button>
       </div>
@@ -64,10 +106,14 @@
             <label style="font-size:12px; font-weight:500;">फसल (Crop)</label>
             <select id="cropSelect" style="width:100%; padding:6px; border-radius:6px; border:1px solid #ccc;">
               <option value="">-- निवडा / Select --</option>
-              <option value="cotton">कापूस (Cotton)</option>
+              <option value="grapes">द्राक्ष (Grapes)</option>
+              <option value="pomegranate">डाळिंब (Pomegranate)</option>
               <option value="tomato">टोमॅटो (Tomato)</option>
               <option value="onion">कांदा (Onion)</option>
+              <option value="cotton">कापूस (Cotton)</option>
               <option value="soybean">सोयाबीन (Soybean)</option>
+              <option value="sugarcane">ऊस (Sugarcane)</option>
+              <option value="wheat">गहू (Wheat)</option>
             </select>
           </div>
           <div style="flex:1; min-width:140px;">
@@ -83,7 +129,7 @@
 
       <div id="chat"></div>
       <div class="row">
-        <input id="msg" placeholder="अपना सवाल लिखें… (e.g., टमाटर में फलन के समय खाद)"/>
+        <input id="msg" placeholder="अपना सवाल लिखें… (e.g., द्राक्षाला दावण्या उपाय)"/>
         <button id="send">Send</button>
       </div>
       <div class="footer">
@@ -160,6 +206,63 @@
   <script>
     const API_KEY = ""; 
 
+    // --- RETAILER BRANDING LOGIC ---
+    document.addEventListener('DOMContentLoaded', function() {
+        const savedName = localStorage.getItem('krishiShopName');
+        const savedPhone = localStorage.getItem('krishiShopPhone');
+        if (savedName) {
+            document.getElementById('shopNameInput').value = savedName;
+            document.getElementById('shopPhoneInput').value = savedPhone || '';
+            updateShopDisplay(savedName, savedPhone);
+        } else {
+            document.getElementById('shopDisplay').textContent = 'Setup your shop details to brand messages.';
+        }
+    });
+
+    function toggleShopSettings() {
+        document.getElementById('shopSettings').classList.toggle('show');
+    }
+
+    function saveShopDetails() {
+        const name = document.getElementById('shopNameInput').value.trim();
+        const phone = document.getElementById('shopPhoneInput').value.trim();
+        
+        if (name) {
+            localStorage.setItem('krishiShopName', name);
+            localStorage.setItem('krishiShopPhone', phone);
+            updateShopDisplay(name, phone);
+            toggleShopSettings();
+            alert('Shop details saved! Messages will now be branded.');
+        } else {
+            alert('Please enter a shop name.');
+        }
+    }
+
+    function updateShopDisplay(name, phone) {
+        document.getElementById('shopDisplay').textContent = `🏪 ${name} ${phone ? '| 📞 ' + phone : ''}`;
+    }
+
+    function createWhatsAppLink(adviceText) {
+        const shopName = localStorage.getItem('krishiShopName') || "KrishiGPT Advisor";
+        const shopPhone = localStorage.getItem('krishiShopPhone') || "";
+        
+        const message = `
+*🏪 ${shopName}*
+${shopPhone ? '📞 ' + shopPhone : ''}
+──────────────────
+*शेतकऱ्यासाठी सल्ला (Advice):*
+
+${adviceText}
+
+──────────────────
+✅ *Verified by KrishiGPT*
+💊 _दवाई वापरताना काळजी घ्या._
+`.trim();
+        
+        return `https://wa.me/?text=${encodeURIComponent(message)}`;
+    }
+    // -----------------------------
+
     // Chat logic
     const chat = document.getElementById('chat');
     const input = document.getElementById('msg');
@@ -171,6 +274,18 @@
       const div = document.createElement('div');
       div.className = 'msg ' + (who === 'user' ? 'user' : 'bot');
       div.textContent = text;
+      
+      // If message is from BOT, add Share Button
+      if (who === 'bot') {
+        const shareBtn = document.createElement('a');
+        shareBtn.className = 'share-btn';
+        shareBtn.innerHTML = '<span>📲 Share on WhatsApp</span>';
+        shareBtn.href = createWhatsAppLink(text);
+        shareBtn.target = '_blank';
+        div.appendChild(document.createElement('br'));
+        div.appendChild(shareBtn);
+      }
+      
       chat.appendChild(div);
       chat.scrollTop = chat.scrollHeight;
     }
@@ -258,9 +373,12 @@
       const farmer = data.input?.farmer || '';
       const cropNote = data.input?.crop_note || '';
       const area = data.input?.area_acre ?? '-';
+      const shopName = localStorage.getItem('krishiShopName') || "";
 
       const resultText = 
-`शेतकरी: ${farmer || '-'}
+`${shopName ? '🏪 ' + shopName : ''}
+--------------------------------
+शेतकरी: ${farmer || '-'}
 फसल/नोट्स: ${cropNote || '-'}
 
 क्षेत्र: ${area} एकर
