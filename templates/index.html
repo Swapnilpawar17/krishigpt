@@ -3,204 +3,207 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>KrishiGPT - Retailer CRM Edition</title>
+  <title>KrishiGPT - Retailer Pro</title>
   <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
   <style>
-    :root { --green:#2f855a; --muted:#6b7280; --bg:#f7faf7; }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin:0; background: var(--bg); }
-    .container { max-width: 900px; margin: 0 auto; padding: 16px; }
-    .card { background: #fff; border-radius: 10px; padding: 16px; box-shadow: 0 2px 10px rgba(0,0,0,.06); }
-    h1 { margin: 0 0 8px 0; }
-    .sub { color: var(--muted); margin: 0 0 16px 0; }
+    :root { --green:#16a34a; --dark-green:#14532d; --bg:#f0fdf4; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin:0; background: var(--bg); color: #1f2937; }
+    .container { max-width: 900px; margin: 0 auto; padding: 12px; }
+    .card { background: #fff; border-radius: 12px; padding: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,.1); border: 1px solid #e5e7eb; }
+    
+    /* Header */
+    h1 { margin: 0; font-size: 1.5rem; color: var(--dark-green); display: flex; align-items: center; gap: 8px; }
+    .sub { color: #6b7280; margin: 4px 0 16px 0; font-size: 0.9rem; }
     
     /* Retailer Branding Section */
-    .retailer-section { background: #f0fdf4; border-left: 4px solid var(--green); padding: 12px; margin-bottom: 15px; border-radius: 4px; }
+    .retailer-section { background: #dcfce7; border: 1px solid #86efac; padding: 12px; margin-bottom: 15px; border-radius: 8px; }
     .retailer-header { display: flex; justify-content: space-between; align-items: center; }
-    .retailer-title { font-weight: bold; color: #166534; font-size: 14px; }
-    .retailer-toggle { color: var(--green); text-decoration: underline; cursor: pointer; font-size: 12px; background: none; border: none; padding: 0; }
-    .retailer-form { display: none; margin-top: 10px; }
+    .retailer-title { font-weight: 700; color: var(--dark-green); font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .retailer-toggle { color: var(--green); text-decoration: none; cursor: pointer; font-size: 12px; background: none; border: none; padding: 0; font-weight: 600; }
+    .retailer-form { display: none; margin-top: 10px; padding-top: 10px; border-top: 1px dashed #86efac; }
     .retailer-form.show { display: block; }
-    .retailer-display { font-size: 13px; font-weight: bold; color: #15803d; margin-top: 5px; }
+    .retailer-display { font-size: 14px; font-weight: bold; color: #15803d; margin-top: 4px; display: flex; align-items: center; gap: 6px; }
 
-    /* Chat */
-    #chat { max-height: 55vh; overflow: auto; padding: 8px; border: 1px solid #eee; border-radius: 8px; background:#fafafa; }
-    .msg { padding: 10px 12px; margin: 8px 0; border-radius: 8px; white-space: pre-wrap; position: relative; }
-    .user { background: #e8f0fe; text-align: right; }
-    .bot { background: #e7f7e7; }
+    /* Chat Area */
+    #chat { height: 50vh; overflow-y: auto; padding: 12px; border: 1px solid #e5e7eb; border-radius: 12px; background:#f9fafb; margin-bottom: 12px; scroll-behavior: smooth; }
+    .msg { padding: 10px 14px; margin: 8px 0; border-radius: 12px; white-space: pre-wrap; position: relative; font-size: 14px; line-height: 1.5; max-width: 85%; }
+    .user { background: #e0f2fe; color: #075985; margin-left: auto; border-bottom-right-radius: 2px; }
+    .bot { background: #fff; border: 1px solid #e5e7eb; color: #1f2937; margin-right: auto; border-bottom-left-radius: 2px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
     
-    /* WhatsApp Share Button */
+    /* Share Button */
     .share-btn { 
-      display: inline-flex; align-items: center; gap: 5px;
-      margin-top: 8px; padding: 6px 12px; 
+      display: inline-flex; align-items: center; gap: 6px;
+      margin-top: 8px; padding: 6px 14px; 
       background: #25D366; color: white; 
       font-size: 12px; font-weight: bold; 
       border-radius: 20px; text-decoration: none; 
-      border: none; cursor: pointer; 
+      border: none; cursor: pointer; transition: background 0.2s;
     }
     .share-btn:hover { background: #1ebc57; }
 
-    .row { display: flex; gap: 8px; margin-top: 12px; }
-    input, select { flex: 1; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-size:14px; width:100%; box-sizing:border-box; }
-    button { padding: 10px 14px; border: 0; border-radius: 6px; background: var(--green); color:#fff; cursor: pointer; white-space:nowrap; }
-    button.secondary { background:#1f2937; }
-    button:disabled { background:#9aa5b1; cursor:not-allowed; }
-    .toolbar { display:flex; gap:8px; margin-bottom:10px; flex-wrap: wrap; }
+    /* Inputs */
+    .row { display: flex; gap: 8px; align-items: center; }
+    input, select { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #d1d5db; font-size:15px; outline: none; transition: border-color 0.2s; }
+    input:focus, select:focus { border-color: var(--green); ring: 2px var(--green); }
     
+    /* Buttons */
+    button { padding: 12px 16px; border: 0; border-radius: 8px; background: var(--green); color:#fff; cursor: pointer; font-weight: 600; font-size: 14px; transition: background 0.2s; }
+    button:hover { background: #15803d; }
+    button:disabled { background:#9ca3af; cursor:not-allowed; }
+    button.icon-btn { padding: 12px; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+    
+    /* Mic Button */
+    #micBtn { background: #f3f4f6; color: #4b5563; border: 1px solid #d1d5db; }
+    #micBtn.listening { background: #fee2e2; color: #ef4444; border-color: #ef4444; animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+
     /* Modal */
-    .modal { position: fixed; inset:0; background: rgba(0,0,0,.45); display:none; align-items: center; justify-content: center; padding: 16px; z-index:999; }
+    .modal { position: fixed; inset:0; background: rgba(0,0,0,.5); display:none; align-items: center; justify-content: center; padding: 16px; z-index:999; backdrop-filter: blur(2px); }
     .modal.show { display:flex; }
-    .box { width: 100%; max-width: 600px; background:#fff; border-radius: 10px; padding: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.2); overflow-y:auto; max-height:90vh; }
+    .box { width: 100%; max-width: 500px; background:#fff; border-radius: 16px; padding: 20px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); overflow-y:auto; max-height:90vh; }
     .grid { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
     .grid .full { grid-column: 1 / -1; }
-    .hint { color: var(--muted); font-size: 12px; margin-top:4px; }
-    .result { background:#f8fafc; border:1px solid #eee; border-radius:8px; padding:12px; margin-top:12px; }
-    .close { background:#ef4444; }
-    .pill { font-size:12px; padding:4px 8px; border-radius:999px; background:#eef2ff; color:#3730a3; }
-    .footer { color:#6b7280; font-size:12px; margin-top:12px; text-align:center; }
-    .hr { height:1px; background:#eee; margin: 12px 0; }
-    label { font-weight:500; font-size:14px; display:block; margin-bottom:4px; }
-    .top-actions { display:flex; gap:6px; justify-content:flex-end; margin-bottom:6px; }
-    .top-actions button { padding:4px 8px; font-size:11px; }
+    .hint { color: #6b7280; font-size: 11px; margin-top:4px; }
+    .result { background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px; margin-top:16px; }
+    .close { background: transparent; color: #6b7280; font-size: 20px; padding: 4px; }
+    .close:hover { background: #f3f4f6; color: #000; }
+    .footer { color:#6b7280; font-size:11px; margin-top:16px; text-align:center; }
+    .hr { height:1px; background:#e5e7eb; margin: 16px 0; }
+    label { font-weight:600; font-size:13px; display:block; margin-bottom:4px; color: #374151; }
+    .top-actions { display:flex; gap:8px; justify-content:flex-end; margin-bottom:8px; }
+    .top-actions button { padding:6px 12px; font-size:12px; }
+    .btn-print { background: #3b82f6; }
+    .btn-print:hover { background: #2563eb; }
 
-    /* History List Styling */
-    .hist-item { padding: 8px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
-    .hist-item:last-child { border-bottom: none; }
+    /* History */
+    .hist-item { padding: 10px; border-bottom: 1px solid #f3f4f6; display: flex; justify-content: space-between; align-items: center; }
     .hist-info { flex: 1; }
-    .hist-name { font-weight: bold; color: #333; }
-    .hist-prod { color: #666; font-size: 11px; }
-    .hist-actions { display: flex; gap: 5px; }
-    .btn-icon { padding: 4px 6px; font-size: 12px; border-radius: 4px; cursor: pointer; text-decoration: none; border:none; color:white; }
+    .hist-name { font-weight: 600; color: #111827; font-size: 13px; }
+    .hist-prod { color: #6b7280; font-size: 12px; }
+    .btn-icon { padding: 6px 10px; font-size: 12px; border-radius: 6px; border:none; color:white; display: flex; align-items: center; gap: 4px; }
     .btn-wa { background: #25D366; }
-    .btn-wa:hover { background: #1ebc57; }
+    
+    /* Crop Select Area */
+    .crop-card { background: #fffbeb; border: 1px solid #fcd34d; padding: 10px; border-radius: 8px; margin-bottom: 12px; }
 
     @media (max-width: 600px) {
       .grid { grid-template-columns: 1fr; }
+      .container { padding: 8px; }
+      .card { padding: 12px; }
     }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="card">
-      <h1>🌾 KrishiGPT</h1>
-      <p class="sub">AI कृषि सलाह + 🧮 डोज़ कैलकुलेटर + CRM</p>
+      <h1>🌾 KrishiGPT <span style="font-size:10px; background:#dcfce7; color:#166534; padding:2px 6px; border-radius:99px;">PRO</span></h1>
+      <p class="sub">AI Agronomy Assistant & Retailer Tools</p>
 
-      <!-- RETAILER BRANDING SECTION -->
+      <!-- RETAILER BRANDING -->
       <div class="retailer-section">
         <div class="retailer-header">
           <div>
-            <div class="retailer-title">🏪 दुकानदार सेटिंग (Retailer Mode)</div>
-            <div id="shopDisplay" class="retailer-display"></div>
+            <div class="retailer-title">🏪 Shop Branding</div>
+            <div id="shopDisplay" class="retailer-display">Using Default Settings</div>
           </div>
-          <button class="retailer-toggle" onclick="toggleShopSettings()">⚙️ Setup</button>
+          <button class="retailer-toggle" onclick="toggleShopSettings()">⚙️ Edit Shop Info</button>
         </div>
         
         <div id="shopSettings" class="retailer-form">
           <div class="grid" style="grid-template-columns: 1fr; gap: 8px;">
             <input type="text" id="shopNameInput" placeholder="Enter Shop Name (e.g. Patil Krishi Seva)">
             <input type="text" id="shopPhoneInput" placeholder="Mobile Number (e.g. 98220xxxxx)">
-            <button onclick="saveShopDetails()">Save Details</button>
+            <button onclick="saveShopDetails()">✅ Save Settings</button>
           </div>
         </div>
       </div>
 
-      <div class="toolbar">
-        <button id="openCalcBtn">🧮 Dosage Calculator</button>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <button id="openCalcBtn" style="background:#4f46e5; width:100%;">🧮 Open Dosage Calculator</button>
       </div>
 
-      <!-- CROP INFO SECTION -->
-      <div style="margin-bottom:10px; padding:8px; border:1px solid #eee; border-radius:8px; background:#f9fafb;">
-        <div style="font-size:13px; font-weight:600; margin-bottom:6px;">
-          🌱 फसल माहिती (Crop Info) – optional but recommended
+      <!-- CROP CONTEXT -->
+      <div class="crop-card">
+        <div style="font-size:12px; font-weight:700; color:#b45309; margin-bottom:6px; text-transform:uppercase;">
+          🌱 Crop Context (Optional)
         </div>
-        <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <div style="flex:1; min-width:120px;">
-            <label style="font-size:12px; font-weight:500;">फसल (Crop)</label>
-            <select id="cropSelect" style="width:100%; padding:6px; border-radius:6px; border:1px solid #ccc;">
-              <option value="">-- निवडा / Select --</option>
-              <option value="grapes">द्राक्ष (Grapes)</option>
-              <option value="pomegranate">डाळिंब (Pomegranate)</option>
-              <option value="tomato">टोमॅटो (Tomato)</option>
-              <option value="onion">कांदा (Onion)</option>
-              <option value="cotton">कापूस (Cotton)</option>
-              <option value="soybean">सोयाबीन (Soybean)</option>
-              <option value="sugarcane">ऊस (Sugarcane)</option>
-              <option value="wheat">गहू (Wheat)</option>
-            </select>
-          </div>
-          <div style="flex:1; min-width:140px;">
-            <label style="font-size:12px; font-weight:500;">पेरणी तारीख (Sowing Date)</label>
-            <input id="sowingDate" type="date"
-                   style="width:100%; padding:6px; border-radius:6px; border:1px solid #ccc;"/>
-            <div style="font-size:11px; color:#6b7280; margin-top:2px;">
-              Format: YYYY-MM-DD
-            </div>
-          </div>
+        <div style="display:flex; gap:8px;">
+          <select id="cropSelect">
+            <option value="">Select Crop...</option>
+            <option value="grapes">🍇 Grapes (द्राक्ष)</option>
+            <option value="pomegranate">🍎 Pomegranate (डाळिंब)</option>
+            <option value="tomato">🍅 Tomato (टोमॅटो)</option>
+            <option value="onion">🧅 Onion (कांदा)</option>
+            <option value="cotton">☁️ Cotton (कापूस)</option>
+            <option value="soybean">🌱 Soybean (सोयाबीन)</option>
+            <option value="sugarcane">🎋 Sugarcane (ऊस)</option>
+          </select>
+          <input id="sowingDate" type="date" style="max-width: 130px;"/>
         </div>
       </div>
 
       <div id="chat"></div>
+      
       <div class="row">
-        <input id="msg" placeholder="अपना सवाल लिखें… (e.g., द्राक्षाला दावण्या उपाय)"/>
-        <button id="send">Send</button>
+        <!-- Voice Input Button -->
+        <button id="micBtn" class="icon-btn" onclick="toggleVoice()" title="Speak">🎤</button>
+        
+        <input id="msg" placeholder="Ask in Marathi/Hindi..."/>
+        <button id="send" class="icon-btn" style="background:var(--green);">➤</button>
       </div>
+      
       <div class="footer">
-        ⚠️ डिस्क्लेमर: यह सामान्य सलाह है; स्थानीय लेबल/नियम देखें। संदेह में KVK/कृषि अधिकारी से संपर्क करें।
+        ⚠️ Disclaimer: AI advice. Always check product label.
       </div>
     </div>
   </div>
 
-  <!-- MODAL: DOSAGE CALCULATOR + CRM -->
-  <div id="calcModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="calcTitle">
+  <!-- MODAL: DOSAGE & CRM -->
+  <div id="calcModal" class="modal">
     <div class="box">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
-        <h3 id="calcTitle" style="margin:0;">🧮 डोज़ कैलकुलेटर</h3>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <h3 id="calcTitle" style="margin:0;">🧮 Dosage Calculator</h3>
         <button id="closeCalcBtn" class="close">✕</button>
       </div>
       <div class="hr"></div>
 
       <div class="grid">
         <div class="full">
-          <label>शेतकरी नाव (Farmer Name) <span style="font-weight:normal;color:#888">(required for history)</span>
-            <input id="c_farmer" placeholder="e.g., Pandurang Patil"/>
-          </label>
+          <label>Farmer Name (शेतकरी)</label>
+          <input id="c_farmer" placeholder="e.g. Ram Patil"/>
         </div>
         <div class="full">
-          <label>फसल / प्लॉट नोट्स (Crop / Notes)</label>
-          <input id="c_cropnote" placeholder="e.g., Cotton 1 acre, village name"/>
-        </div>
-        <div class="full">
-          <label>उत्पाद का नाम (Product Name)</label>
-          <input id="c_product" placeholder="e.g., Emamectin 5% SG"/>
+          <label>Product Name (औषध)</label>
+          <input id="c_product" placeholder="e.g. Confidor"/>
         </div>
         <div>
-          <label>इकाई (Unit)</label>
+          <label>Unit (एकक)</label>
           <select id="c_unit">
-            <option value="ml_per_l">ml per liter (ml/L)</option>
-            <option value="g_per_l">g per liter (g/L)</option>
-            <option value="ml_per_acre">ml per acre</option>
-            <option value="g_per_acre">g per acre</option>
+            <option value="ml_per_l">ml per Litre</option>
+            <option value="g_per_l">gm per Litre</option>
+            <option value="ml_per_acre">ml per Acre</option>
+            <option value="g_per_acre">gm per Acre</option>
           </select>
-          <div class="hint">लेबल के अनुसार चुनें</div>
         </div>
         <div>
-          <label>दर (Rate)</label>
-          <input id="c_rate" type="number" step="any" placeholder="e.g., 0.5"/>
-          <div class="hint">ml/L, g/L, ml/acre या g/acre</div>
+          <label>Rate (प्रमाण)</label>
+          <input id="c_rate" type="number" step="any" placeholder="0.0"/>
         </div>
         <div>
-          <label>टैंक साइज (Tank Size - L)</label>
-          <input id="c_tank" type="number" step="any" placeholder="e.g., 15 or 200"/>
+          <label>Tank Size (L)</label>
+          <input id="c_tank" type="number" step="any" placeholder="15"/>
         </div>
         <div>
-          <label>स्प्रे मात्रा (Spray Volume - L/acre)</label>
-          <input id="c_spray" type="number" step="any" placeholder="e.g., 200"/>
-        </div>
-        <div>
-          <label>क्षेत्र (Area - Acre)</label>
+          <label>Area (Acre)</label>
           <input id="c_area" type="number" step="any" value="1"/>
         </div>
-        <div class="full" style="display:flex;justify-content:space-between;align-items:center;">
-          <button id="calcBtn" style="width:100%">Calculate (गणना करें)</button>
+        <div class="full">
+           <label>Spray Volume (L/Acre) <span style="font-weight:normal;color:#888;font-size:10px;">(Auto: 200)</span></label>
+           <input id="c_spray" type="number" step="any" placeholder="200"/>
+        </div>
+        
+        <div class="full">
+          <button id="calcBtn" style="width:100%">Calculate Dosage</button>
         </div>
 
         <div class="full">
@@ -208,19 +211,15 @@
         </div>
       </div>
 
-      <!-- HISTORY / MINI-CRM SECTION -->
+      <!-- HISTORY -->
       <div class="hr"></div>
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-        <h4 style="margin:0; color:#166534;">📜 Recent Customers (ग्राहक लिस्ट)</h4>
-        <button onclick="clearHistory()" style="font-size:11px; background:#ef4444; color:white; border:none; border-radius:4px; padding:2px 8px; cursor:pointer;">Clear</button>
+        <h4 style="margin:0; font-size:13px; color:#1f2937;">📜 Customer History</h4>
+        <button onclick="clearHistory()" style="font-size:10px; padding:4px 8px; background:#ef4444;">Clear All</button>
       </div>
       
-      <div id="historyList" style="max-height: 150px; overflow-y: auto; border:1px solid #eee; border-radius:6px; font-size:12px;">
-        <!-- History items inserted via JS -->
-      </div>
-
-      <div class="footer">
-        नोट: हमेशा उत्पाद लेबल/स्थानीय नियमों का पालन करें। PHI/REI और PPE ज़रूरी है।
+      <div id="historyList" style="max-height: 150px; overflow-y: auto;">
+        <!-- JS fills this -->
       </div>
     </div>
   </div>
@@ -228,7 +227,7 @@
   <script>
     const API_KEY = ""; 
 
-    // --- RETAILER BRANDING ---
+    // --- 1. RETAILER BRANDING ---
     document.addEventListener('DOMContentLoaded', function() {
         const savedName = localStorage.getItem('krishiShopName');
         const savedPhone = localStorage.getItem('krishiShopPhone');
@@ -236,12 +235,13 @@
             document.getElementById('shopNameInput').value = savedName;
             document.getElementById('shopPhoneInput').value = savedPhone || '';
             updateShopDisplay(savedName, savedPhone);
-        } else {
-            document.getElementById('shopDisplay').textContent = 'Setup your shop details to brand messages.';
         }
-        
-        // Load History
         renderHistory();
+        
+        // Hide mic if not supported
+        if (!('webkitSpeechRecognition' in window)) {
+            document.getElementById('micBtn').style.display = 'none';
+        }
     });
 
     function toggleShopSettings() {
@@ -251,48 +251,60 @@
     function saveShopDetails() {
         const name = document.getElementById('shopNameInput').value.trim();
         const phone = document.getElementById('shopPhoneInput').value.trim();
-        
         if (name) {
             localStorage.setItem('krishiShopName', name);
             localStorage.setItem('krishiShopPhone', phone);
             updateShopDisplay(name, phone);
             toggleShopSettings();
-            alert('Shop details saved!');
         } else {
-            alert('Please enter a shop name.');
+            alert('Shop Name is required');
         }
     }
 
     function updateShopDisplay(name, phone) {
-        document.getElementById('shopDisplay').textContent = `🏪 ${name} ${phone ? '| 📞 ' + phone : ''}`;
+        document.getElementById('shopDisplay').innerHTML = `🏪 ${name} ${phone ? '<span style="color:#6b7280; font-weight:normal;">| 📞 ' + phone + '</span>' : ''}`;
     }
 
     function createWhatsAppLink(adviceText) {
         const shopName = localStorage.getItem('krishiShopName') || "KrishiGPT Advisor";
         const shopPhone = localStorage.getItem('krishiShopPhone') || "";
-        
-        const message = `
-*🏪 ${shopName}*
-${shopPhone ? '📞 ' + shopPhone : ''}
-──────────────────
-*शेतकऱ्यासाठी सल्ला (Advice):*
-
-${adviceText}
-
-──────────────────
-✅ *Verified by KrishiGPT*
-💊 _दवाई वापरताना काळजी घ्या._
-`.trim();
+        const message = `*🏪 ${shopName}*\n${shopPhone ? '📞 ' + shopPhone + '\n' : ''}──────────────────\n*Advice:*\n\n${adviceText}\n\n──────────────────\n✅ Verified by KrishiGPT`;
         return `https://wa.me/?text=${encodeURIComponent(message)}`;
     }
-    // -----------------------
 
-    // Chat logic
+    // --- 2. VOICE INPUT (New!) ---
+    let recognition;
+    if ('webkitSpeechRecognition' in window) {
+        recognition = new webkitSpeechRecognition();
+        recognition.continuous = false;
+        recognition.lang = 'hi-IN'; // Default Hindi/Marathi mix
+        
+        recognition.onstart = function() {
+            document.getElementById('micBtn').classList.add('listening');
+        };
+        
+        recognition.onend = function() {
+            document.getElementById('micBtn').classList.remove('listening');
+        };
+        
+        recognition.onresult = function(event) {
+            const transcript = event.results[0][0].transcript;
+            document.getElementById('msg').value = transcript;
+        };
+    }
+
+    function toggleVoice() {
+        if (recognition) {
+            recognition.start();
+        } else {
+            alert("Voice input not supported in this browser. Use Chrome.");
+        }
+    }
+
+    // --- 3. CHAT LOGIC ---
     const chat = document.getElementById('chat');
     const input = document.getElementById('msg');
     const btn = document.getElementById('send');
-    const cropSelect = document.getElementById('cropSelect');
-    const sowingInput = document.getElementById('sowingDate');
 
     function addMsg(text, who) {
       const div = document.createElement('div');
@@ -302,13 +314,12 @@ ${adviceText}
       if (who === 'bot') {
         const shareBtn = document.createElement('a');
         shareBtn.className = 'share-btn';
-        shareBtn.innerHTML = '<span>📲 Share on WhatsApp</span>';
+        shareBtn.innerHTML = '<span>📲 Share</span>';
         shareBtn.href = createWhatsAppLink(text);
         shareBtn.target = '_blank';
         div.appendChild(document.createElement('br'));
         div.appendChild(shareBtn);
       }
-      
       chat.appendChild(div);
       chat.scrollTop = chat.scrollHeight;
     }
@@ -320,8 +331,8 @@ ${adviceText}
       input.value = '';
       btn.disabled = true;
 
-      const crop = cropSelect.value || null;
-      const sowingDate = sowingInput.value || null;
+      const crop = document.getElementById('cropSelect').value || null;
+      const sowingDate = document.getElementById('sowingDate').value || null;
       const payload = { message: text };
       if (crop) payload.crop = crop;
       if (sowingDate) payload.sowing_date = sowingDate;
@@ -344,153 +355,98 @@ ${adviceText}
     btn.onclick = send;
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
 
-    // Calculator logic
-    const openCalcBtn = document.getElementById('openCalcBtn');
-    const closeCalcBtn = document.getElementById('closeCalcBtn');
+    // --- 4. CALCULATOR & PRINTING ---
     const calcModal = document.getElementById('calcModal');
-    const calcBtn = document.getElementById('calcBtn');
     const calcOut = document.getElementById('calcOut');
+    
+    document.getElementById('openCalcBtn').onclick = () => calcModal.classList.add('show');
+    document.getElementById('closeCalcBtn').onclick = () => calcModal.classList.remove('show');
 
-    function openCalc() { calcModal.classList.add('show'); }
-    function closeCalc() { calcModal.classList.remove('show'); calcOut.style.display='none'; calcOut.innerHTML=''; }
+    function val(id) { return document.getElementById(id).value.trim() || null; }
+    function num(v) { return v ? parseFloat(v) : null; }
+    function fmt(x) { return x ? Number(x).toFixed(2) : '-'; }
 
-    openCalcBtn.addEventListener('click', openCalc);
-    closeCalcBtn.addEventListener('click', closeCalc);
-    calcModal.addEventListener('click', (e) => { if (e.target === calcModal) closeCalc(); });
-    window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeCalc(); });
-
-    function val(id) {
-      const el = document.getElementById(id);
-      if (!el) return null;
-      const v = el.value.trim();
-      return v === '' ? null : v;
+    // PRINT BILL FUNCTION
+    function printBill(data) {
+        const shopName = localStorage.getItem('krishiShopName') || "Krishi Seva";
+        const w = window.open('', '', 'width=350,height=600');
+        w.document.write(`
+            <html><head><style>
+                body { font-family: monospace; font-size: 12px; width: 300px; padding: 10px; }
+                .center { text-align: center; }
+                hr { border-top: 1px dashed #000; }
+                .row { display: flex; justify-content: space-between; }
+                .bold { font-weight: bold; }
+            </style></head><body>
+                <div class="center">
+                    <h3 style="margin:0">${shopName}</h3>
+                    <div>Dosage Receipt</div>
+                    <hr>
+                </div>
+                <div>Customer: ${data.input.farmer || 'Walk-in'}</div>
+                <div>Product: ${data.input.product || '-'}</div>
+                <hr>
+                <div class="row"><span>Per 15L Pump:</span> <span class="bold">${fmt(data.results.per_tank.amount)} ${data.results.per_tank.unit}</span></div>
+                <div class="row"><span>Per Acre:</span> <span>${fmt(data.results.per_acre.amount)} ${data.results.per_acre.unit}</span></div>
+                <div class="row"><span>Tanks Needed:</span> <span>${fmt(data.results.tanks_needed)}</span></div>
+                <hr>
+                <div class="center">Thank You!<br>Powered by KrishiGPT</div>
+            </body></html>
+        `);
+        w.print();
+        w.close();
     }
-    function num(v) {
-      if (v === null) return null;
-      const n = parseFloat(v);
-      return isNaN(n) ? null : n;
-    }
-    function fmt(x) {
-      if (x == null) return '-';
-      const n = Number(x);
-      if (Number.isNaN(n)) return '-';
-      return n < 1 ? n.toFixed(3) : n.toFixed(2);
-    }
 
-    window.copyResult = function() {
-      const text = document.getElementById('resultText').innerText;
-      navigator.clipboard.writeText(text).then(() => {
-        alert('Copied to clipboard.');
-      });
+    document.getElementById('calcBtn').onclick = async () => {
+        const product = val('c_product');
+        const unit = val('c_unit');
+        const rate = num(val('c_rate'));
+        const tank = num(val('c_tank'));
+        const spray = num(val('c_spray'));
+        const area = num(val('c_area'));
+        const farmer = val('c_farmer');
+
+        if (!unit || rate == null) { alert('Unit and Rate are required'); return; }
+
+        const payload = { unit, rate, product, tank_size_l: tank, spray_volume_l_per_acre: spray, area_acre: area };
+        
+        try {
+            const res = await fetch('/api/calc/dose', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+            const raw = await res.json();
+            const data = raw.data;
+            
+            // Render Result
+            if(!data.input) data.input = {};
+            data.input.farmer = farmer;
+            data.input.product = product;
+
+            calcOut.innerHTML = `
+                <div class="top-actions">
+                  <button class="btn-print" id="printBtn">🖨️ Print Slip</button>
+                </div>
+                <div style="font-family:monospace; line-height:1.6;">
+                  <b>Per Pump (${data.input.tank_size_l}L):</b> <span style="color:#16a34a; font-weight:bold; font-size:16px;">${fmt(data.results.per_tank.amount)} ${data.results.per_tank.unit}</span><br/>
+                  <b>Per Acre:</b> ${fmt(data.results.per_acre.amount)} ${data.results.per_acre.unit}<br/>
+                  <b>Total Tanks:</b> ${fmt(data.results.tanks_needed)}
+                </div>
+            `;
+            calcOut.style.display = 'block';
+
+            // Bind Print Button
+            document.getElementById('printBtn').onclick = () => printBill(data);
+
+            // Save to History
+            addToHistory(farmer, product);
+
+        } catch(e) {
+            alert("Calculation Error: " + e.message);
+        }
     };
 
-    function renderResult(data) {
-      const r = data.results || {};
-      const perL = r.per_liter ? `${fmt(r.per_liter.amount)} ${r.per_liter.unit}` : '-';
-      const perT = r.per_tank ? `${fmt(r.per_tank.amount)} ${r.per_tank.unit}` : '-';
-      const perA = r.per_acre ? `${fmt(r.per_acre.amount)} ${r.per_acre.unit}` : '-';
-      const total = r.area_total ? `${fmt(r.area_total.amount)} ${(r.per_liter?.unit || r.per_acre?.unit || '')}` : '-';
-      const water = r.total_water_l != null ? `${fmt(r.total_water_l)} L` : '-';
-      const tanks = r.tanks_needed != null ? fmt(r.tanks_needed) : '-';
-
-      const farmer = data.input?.farmer || '';
-      const cropNote = data.input?.crop_note || '';
-      const area = data.input?.area_acre ?? '-';
-      const shopName = localStorage.getItem('krishiShopName') || "";
-
-      const resultText = 
-`${shopName ? '🏪 ' + shopName : ''}
---------------------------------
-शेतकरी: ${farmer || '-'}
-फसल/नोट्स: ${cropNote || '-'}
-
-क्षेत्र: ${area} एकर
-उत्पाद: ${data.input?.product || 'N/A'}
-
-Per Liter: ${perL}
-Per Tank: ${perT}
-Per Acre: ${perA}
-Total (${area} acre): ${total}
-पाण्याची गरज: ${water}
-टँकची गरज: ${tanks}`;
-
-      calcOut.innerHTML = `
-        <div class="top-actions">
-          <button onclick="copyResult()">Copy</button>
-        </div>
-        <pre id="resultText" style="font-family:monospace; white-space:pre-wrap; font-size:13px; line-height:1.5;">${resultText}</pre>
-        <div class="hint" style="margin-top:8px;">
-          • Always follow label (हमेशा लेबल देखें)<br/>
-          • PHI/REI and PPE mandatory
-        </div>
-      `;
-      calcOut.style.display = 'block';
-    }
-
-    calcBtn.addEventListener('click', async () => {
-      const product = val('c_product');
-      const unit = val('c_unit');
-      const rate = num(val('c_rate'));
-      const tank = num(val('c_tank'));
-      const spray = num(val('c_spray'));
-      const area = num(val('c_area'));
-      const farmer = val('c_farmer');
-      const cropNote = val('c_cropnote');
-
-      if (!unit) { alert('Please select unit (इकाई चुनें)'); return; }
-      if (rate == null) { alert('Please enter rate (दर भरें)'); return; }
-
-      const payload = {};
-      payload.unit = unit;
-      payload.rate = rate;
-      if (product) payload.product = product;
-      if (tank != null) payload.tank_size_l = tank;
-      if (spray != null) payload.spray_volume_l_per_acre = spray;
-      if (area != null) payload.area_acre = area;
-      if (farmer) payload.farmer = farmer;
-      if (cropNote) payload.crop_note = cropNote;
-
-      calcBtn.disabled = true; calcBtn.textContent = 'Calculating...';
-      try {
-        const headers = { 'Content-Type': 'application/json' };
-        const endpoint = API_KEY ? '/api/calc/dose-secure' : '/api/calc/dose';
-        if (API_KEY) headers['X-API-Key'] = API_KEY;
-
-        const res = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify(payload) });
-        const raw = await res.json();
-        if (!res.ok || !raw.success) throw new Error(raw.error || ('HTTP '+res.status));
-        const data = raw.data;
-
-        // attach info
-        if (!data.input) data.input = {};
-        if (farmer) data.input.farmer = farmer;
-        if (cropNote) data.input.crop_note = cropNote;
-
-        renderResult(data);
-        
-        // SAVE TO CRM
-        addToHistory(farmer, product, cropNote);
-        
-      } catch (e) {
-        calcOut.style.display = 'block';
-        calcOut.innerHTML = `<span style="color:#b91c1c">Error: ${e.message || e}</span>`;
-      } finally {
-        calcBtn.disabled = false; calcBtn.textContent = 'Calculate (गणना करें)';
-      }
-    });
-
-    // --- CRM / HISTORY LOGIC ---
-    function addToHistory(name, product, note) {
-        if (!name && !product) return; 
-        
-        const entry = {
-            id: Date.now(),
-            date: new Date().toLocaleDateString('en-IN'),
-            name: name || 'Unknown Farmer',
-            product: product || 'General Advice',
-            note: note || ''
-        };
-
+    // --- 5. CRM HISTORY ---
+    function addToHistory(name, product) {
+        if (!name && !product) return;
+        const entry = { id: Date.now(), date: new Date().toLocaleDateString('en-IN'), name: name || 'Guest', product: product || 'Advice' };
         let history = JSON.parse(localStorage.getItem('krishiHistory') || '[]');
         history.unshift(entry);
         if (history.length > 20) history.pop();
@@ -501,49 +457,23 @@ Total (${area} acre): ${total}
     function renderHistory() {
         const list = document.getElementById('historyList');
         const history = JSON.parse(localStorage.getItem('krishiHistory') || '[]');
+        if (history.length === 0) { list.innerHTML = '<div style="padding:10px;text-align:center;color:#999;">No history yet</div>'; return; }
         
-        if (history.length === 0) {
-            list.innerHTML = '<div style="padding:10px; text-align:center; color:#888;">No customers yet. Calculate to save.</div>';
-            return;
-        }
-
         list.innerHTML = history.map(item => `
             <div class="hist-item">
-                <div class="hist-info">
-                    <div class="hist-name">${item.name} <span style="font-weight:normal; color:#888; font-size:10px;">(${item.date})</span></div>
-                    <div class="hist-prod">${item.product}</div>
-                </div>
-                <div class="hist-actions">
-                    <button class="btn-icon btn-wa" onclick="sendFollowUp('${item.product}', '${item.name}')" title="Send Follow-up">
-                        📢 Follow-up
-                    </button>
-                </div>
+                <div class="hist-info"><div class="hist-name">${item.name}</div><div class="hist-prod">${item.product}</div></div>
+                <button class="btn-icon btn-wa" onclick="followUp('${item.product}', '${item.name}')">📢 Follow-up</button>
             </div>
         `).join('');
     }
 
-    function sendFollowUp(product, name) {
-        const shopName = localStorage.getItem('krishiShopName') || "Krishi Seva";
-        const text = `
-नमस्कार ${name} जी! 🙏
-From: *${shopName}*
+    window.followUp = (prod, name) => {
+        const shop = localStorage.getItem('krishiShopName') || "Krishi Seva";
+        const txt = `Namaskar ${name} ji! From: *${shop}*\n\nHow were the results of *${prod}*? Any issues?\n\n-- ${shop}`;
+        window.open(`https://wa.me/?text=${encodeURIComponent(txt)}`, '_blank');
+    };
 
-काही दिवसांपूर्वी तुम्ही *${product}* घेऊन गेला होतात.
-फरक पडला का? पिकाला आराम आहे ना?
-काही अडचण असल्यास दुकानात या किंवा कॉल करा.
-
--- ${shopName} Care Team
-`.trim();
-        const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
-        window.open(url, '_blank');
-    }
-
-    function clearHistory() {
-        if(confirm('Clear all customer history?')) {
-            localStorage.removeItem('krishiHistory');
-            renderHistory();
-        }
-    }
+    window.clearHistory = () => { if(confirm('Clear history?')) { localStorage.removeItem('krishiHistory'); renderHistory(); } };
   </script>
 </body>
 </html>
