@@ -14,6 +14,8 @@ from ai_engine import KrishiGPT
 from twilio.twiml.messaging_response import MessagingResponse
 from twilio.rest import Client as TwilioClient
 from twilio.request_validator import RequestValidator
+from voice_handler import process_voice_message
+
 
 # Rate limiting
 from flask_limiter import Limiter
@@ -481,8 +483,11 @@ def whatsapp_webhook():
         sender = request.values.get("From", "")  # whatsapp:+919876543210
         sender_name = request.values.get("ProfileName", "किसान")
         sender_short = sender.replace("whatsapp:", "")[-10:] if sender else "Unknown"
+        
+        # NEW: Check for media (voice notes, images)
+        num_media = int(request.values.get("NumMedia", 0))
 
-        logger.info(f"📱 WhatsApp from {sender_short}: {incoming_msg[:80]}...")
+        logger.info(f"📱 WhatsApp from {sender_short}: msg='{incoming_msg[:50]}...' media={num_media}")
 
         resp = MessagingResponse()
         msg = resp.message()
@@ -492,19 +497,99 @@ def whatsapp_webhook():
             _metrics_inc("wa_errors")
             return str(resp), 200, {"Content-Type": "application/xml"}
 
+        # ========== NEW: VOICE MESSAGE HANDLING ==========
+        if num_media > 0:
+            media_type = request.values.get("MediaContentType0", "")
+            media_url = request.values.get("MediaUrl0", "")
+            
+            logger.info(f"📎 Media received: type={media_type}")
+            
+            # Handle VOICE NOTES
+            if "audio" in media_type.lower() or "ogg" in media_type.lower():
+                logger.info("🎤 Processing voice message...")
+                
+                try:
+                    # Get Twilio credentials
+                    account_sid = os.getenv("TWILIO_ACCOUNT_SID")
+                    auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+                    
+                    if not account_sid or not auth_token:
+                        msg.body("❌ Voice processing not configured. कृपया टेक्स्ट में लिखें।")
+                        _metrics_inc("wa_errors")
+                        return str(resp), 200, {"Content-Type": "application/xml"}
+                    
+                    # Process voice message
+                    voice_result = process_voice_message(media_url, account_sid, auth_token)
+                    
+                    if voice_result["success"] and voice_result["text"]:
+                        transcribed_text = voice_result["text"]
+                        logger.info(f"🎤 Transcribed: {transcribed_text[:100]}...")
+                        
+                        # Use transcribed text as the query
+                        incoming_msg = transcribed_text
+                        
+                        # Send acknowledgment with transcription
+                        # (We'll include this in the final response)
+                        
+                    else:
+                        error_msg = voice_result.get("error", "Unknown error")
+                        logger.warning(f"🎤 Transcription failed: {error_msg}")
+                        msg.body(f"""❌ आवाज़ समझ नहीं आई। 
+
+कृपया:
+• धीरे और साफ़ बोलें
+• शोर से दूर रहकर बोलें
+• या टेक्स्ट में लिखें
+
+🔄 फिर से कोशिश करें!""")
+                        _metrics_inc("wa_errors")
+                        return str(resp), 200, {"Content-Type": "application/xml"}
+                        
+                except Exception as e:
+                    logger.exception("Voice processing error")
+                    msg.body("❌ आवाज़ प्रोसेस करने में समस्या हुई। कृपया टेक्स्ट में लिखें।\n\n📞 किसान हेल्पलाइन: 1551")
+                    _metrics_inc("wa_errors")
+                    return str(resp), 200, {"Content-Type": "application/xml"}
+            
+            # Handle IMAGES (future feature - placeholder)
+            elif "image" in media_type.lower():
+                msg.body("""📷 फोटो मिला! 
+
+🔜 जल्द ही फोटो से बीमारी पहचान की सुविधा आ रही है।
+
+अभी के लिए:
+• बीमारी का विवरण टेक्स्ट में लिखें
+• या आवाज़ में बोलकर भेजें 🎤
+
+उदाहरण: "टमाटर के पत्ते पीले हो रहे हैं और उन पर धब्बे हैं" """)
+                _metrics_inc("wa_success")
+                return str(resp), 200, {"Content-Type": "application/xml"}
+            
+            # Handle other media types
+            else:
+                msg.body("🙏 कृपया टेक्स्ट, आवाज़ (🎤) या फोटो भेजें।")
+                _metrics_inc("wa_success")
+                return str(resp), 200, {"Content-Type": "application/xml"}
+        # ========== END VOICE HANDLING ==========
+
         lower = incoming_msg.lower()
 
-        if lower in ["hi","hello","start","शुरू","नमस्कार","हेलो","हाय","menu","help","मदद"]:
+        # Welcome messages
+        if lower in ["hi", "hello", "start", "शुरू", "नमस्कार", "हेलो", "हाय", "menu", "help", "मदद"]:
             welcome = f"""🌾 KrishiGPT में आपका स्वागत है, {sender_name}! 🙏
 
 मैं आपका AI कृषि सलाहकार हूं। मुझसे पूछें:
-• फसल की बीमारी और इलाज
-• खाद-उर्वरक की जानकारी
-• सरकारी योजनाएं
-• कीट नियंत्रण
+• 🐛 फसल की बीमारी और इलाज
+• 💊 खाद-उर्वरक की जानकारी
+• 🏛️ सरकारी योजनाएं
+• 🦗 कीट नियंत्रण
 
-कैसे पूछें: बस अपना सवाल हिंदी या मराठी में लिखें।
-उदाहरण: "कपास में गुलाबी सुंडी का इलाज" या "टमाटर में पत्ते पीले हैं"
+*कैसे पूछें:*
+✍️ टाइप करें - हिंदी या मराठी में
+🎤 आवाज़ में बोलें - Voice note भेजें!
+📷 फोटो भेजें - (जल्द उपलब्ध)
+
+उदाहरण: "कपास में गुलाबी सुंडी का इलाज"
 
 🔄 रीसेट: "नया" लिखें
 💬 अब अपना सवाल पूछें! 👇"""
@@ -512,13 +597,15 @@ def whatsapp_webhook():
             _metrics_inc("wa_success")
             return str(resp), 200, {"Content-Type": "application/xml"}
 
-        if lower in ["clear","reset","नया","नवीन","รีसेट","new"]:
+        # Reset/clear history
+        if lower in ["clear", "reset", "नया", "नवीन", "new"]:
             krishigpt.clear_history(sender)
-            msg.body("✅ बातचीत का इतिहास साफ हो गया।\n\n🔄 अब नया सवाल पूछें!")
+            msg.body("✅ बातचीत का इतिहास साफ हो गया।\n\n🔄 अब नया सवाल पूछें!\n\n💡 Tip: आप आवाज़ में भी सवाल पूछ सकते हैं 🎤")
             _metrics_inc("wa_success")
             return str(resp), 200, {"Content-Type": "application/xml"}
 
-        if lower in ["helpline","हेल्पलाइन","फोन","contact","संपर्क"]:
+        # Helpline info
+        if lower in ["helpline", "हेल्पलाइन", "फोन", "contact", "संपर्क"]:
             helpline = """📞 महत्वपूर्ण हेल्पलाइन:
 
 🌾 किसान कॉल सेंटर: 1551 (टोल फ्री)
@@ -530,28 +617,48 @@ def whatsapp_webhook():
             _metrics_inc("wa_success")
             return str(resp), 200, {"Content-Type": "application/xml"}
 
-        if lower in ["योजना","scheme","schemes","योजनाएं","yojana"]:
+        # Schemes info
+        if lower in ["योजना", "scheme", "schemes", "योजनाएं", "yojana"]:
             scheme_msg = """📋 प्रमुख सरकारी योजनाएं:
 
-1) PM-KISAN — ₹6,000/वर्ष
-2) PMFBY — फसल बीमा
-3) KCC — सस्ती ऋण सुविधा
+1️⃣ PM-KISAN — ₹6,000/वर्ष
+2️⃣ PMFBY — फसल बीमा
+3️⃣ KCC — सस्ती ऋण सुविधा
 
-किसी योजना का नाम लिखें विस्तृत जानकारी के लिए."""
+किसी योजना का नाम लिखें विस्तृत जानकारी के लिए।"""
             msg.body(scheme_msg)
             _metrics_inc("wa_success")
             return str(resp), 200, {"Content-Type": "application/xml"}
 
+        # Empty message
         if not incoming_msg:
-            msg.body("🤔 कृपया अपना सवाल लिखें।\nउदाहरण: टमाटर में पत्ते पीले हो रहे हैं")
+            msg.body("""🤔 कोई सवाल नहीं मिला।
+
+अपना सवाल:
+✍️ टाइप करें, या
+🎤 आवाज़ में बोलकर भेजें!
+
+उदाहरण: "टमाटर में पत्ते पीले हो रहे हैं" """)
             _metrics_inc("wa_success")
             return str(resp), 200, {"Content-Type": "application/xml"}
 
-        # AI response
+        # ========== AI Response ==========
         logger.info("🤖 Generating AI response…")
+        
+        # Check if this was a voice message (for response formatting)
+        was_voice = num_media > 0 and "audio" in request.values.get("MediaContentType0", "").lower()
+        
         ai_response = krishigpt.get_response(sender, incoming_msg)
-        if len(ai_response) > 1500:
-            ai_response = ai_response[:1450] + "\n\n... (अधिक जानकारी के लिए वेबसाइट देखें)"
+        
+        # Truncate if too long for WhatsApp
+        if len(ai_response) > 1400:
+            ai_response = ai_response[:1350] + "\n\n... (अधिक जानकारी के लिए वेबसाइट देखें)"
+        
+        # Add voice acknowledgment if it was a voice message
+        if was_voice:
+            ai_response = f"🎤 *आपने पूछा:* \"{incoming_msg[:100]}{'...' if len(incoming_msg) > 100 else ''}\"\n\n{ai_response}"
+        
+        # Add footer
         ai_response += "\n\n---\n📞 किसान हेल्पलाइन: 1551"
 
         msg.body(ai_response)
@@ -565,46 +672,3 @@ def whatsapp_webhook():
         resp.message("❌ माफ करें, तकनीकी समस्या है। कृपया थोड़ी देर बाद प्रयास करें।\n\n📞 किसान हेल्पलाइन: 1551")
         _metrics_inc("wa_errors")
         return str(resp), 200, {"Content-Type": "application/xml"}
-
-# ---------- Docs ----------
-@app.errorhandler(404)
-def not_found(e):
-    return jsonify({"success": False, "error": "Not found"}), 404
-
-
-@app.errorhandler(500)
-def server_error(e):
-    return jsonify({"success": False, "error": "Server error"}), 500
-
-
-@app.route("/api/docs")
-def api_docs():
-    return jsonify({
-        "service": "KrishiGPT API",
-        "version": os.getenv("APP_VERSION", "1.0.0"),
-        "endpoints": {
-            "GET /": "Web chat interface",
-            "GET /health": "Health check",
-            "GET /healthz": "Health check alias",
-            "GET /metrics": "Usage counters (protected by METRICS_TOKEN if set)",
-            "POST /api/chat": "Web chat API { message, user_id?, crop?, sowing_date? }",
-            "POST /api/chat-secure": "Secure chat API (X-API-Key required if API_SECRET is set)",
-            "POST /api/calc/dose": "Dosage calculator (open)",
-            "POST /api/calc/dose-secure": "Dosage calculator (X-API-Key required if API_SECRET is set)",
-            "POST /api/clear-history": "Clear chat history",
-            "GET /api/quick-info/<topic>": "Quick info",
-            "GET /notebook?id=...": "Notebook view (JSON events by farmer/crop_note)",
-            "POST /whatsapp/webhook": "Twilio WhatsApp webhook"
-        }
-    })
-
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    print("=" * 60)
-    print(f"🚀 KrishiGPT Server running on http://localhost:{port}")
-    print(f"📱 Web Interface: http://127.0.0.1:{port}")
-    print(f"📚 API Docs: http://127.0.0.1:{port}/api/docs")
-    print(f"💬 WhatsApp Webhook: http://127.0.0.1:{port}/whatsapp/webhook")
-    print("=" * 60)
-    app.run(host="0.0.0.0", port=port, debug=True)
