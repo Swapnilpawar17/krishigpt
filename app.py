@@ -15,6 +15,7 @@ from twilio.twiml.messaging_response import MessagingResponse
 from twilio.rest import Client as TwilioClient
 from twilio.request_validator import RequestValidator
 from voice_handler import process_voice_message
+from image_handler import process_crop_image 
 
 
 # Rate limiting
@@ -553,17 +554,70 @@ def whatsapp_webhook():
             
             # Handle IMAGES (future feature - placeholder)
             elif "image" in media_type.lower():
-                msg.body("""📷 फोटो मिला! 
+                logger.info("📷 Processing crop image...")
+                
+                try:
+                    account_sid = os.getenv("TWILIO_ACCOUNT_SID")
+                    auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+                    
+                    if not account_sid or not auth_token:
+                        msg.body("❌ Image processing not configured. कृपया समस्या टेक्स्ट में लिखें।")
+                        _metrics_inc("wa_errors")
+                        return str(resp), 200, {"Content-Type": "application/xml"}
+                    
+                    # Check if Gemini API is configured
+                    if not os.getenv("GEMINI_API_KEY"):
+                        msg.body("""📷 फोटो मिला! 
 
-🔜 जल्द ही फोटो से बीमारी पहचान की सुविधा आ रही है।
+🔜 फोटो से बीमारी पहचान जल्द आ रही है।
 
-अभी के लिए:
-• बीमारी का विवरण टेक्स्ट में लिखें
-• या आवाज़ में बोलकर भेजें 🎤
+अभी के लिए, अपनी समस्या टेक्स्ट में लिखें:
+उदाहरण: "टमाटर के पत्ते पीले हैं और धब्बे हैं" """)
+                        _metrics_inc("wa_success")
+                        return str(resp), 200, {"Content-Type": "application/xml"}
+                    
+                    # Process image
+                    image_result = process_crop_image(media_url, account_sid, auth_token)
+                    
+                    if image_result["success"] and image_result["diagnosis"]:
+                        diagnosis = image_result["diagnosis"]
+                        
+                        # Truncate if too long
+                        if len(diagnosis) > 1400:
+                            diagnosis = diagnosis[:1350] + "\n\n... (विस्तृत जानकारी के लिए वेबसाइट देखें)"
+                        
+                        response_text = f"""📷 *फोटो विश्लेषण:*
 
-उदाहरण: "टमाटर के पत्ते पीले हो रहे हैं और उन पर धब्बे हैं" """)
-                _metrics_inc("wa_success")
-                return str(resp), 200, {"Content-Type": "application/xml"}
+{diagnosis}
+
+---
+⚠️ यह AI आधारित सलाह है। गंभीर समस्या में नजदीकी KVK से संपर्क करें।
+📞 किसान हेल्पलाइन: 1551"""
+                        
+                        msg.body(response_text)
+                        logger.info(f"✅ Image diagnosis sent to {sender_short}")
+                        _metrics_inc("wa_success")
+                        
+                    else:
+                        error_msg = image_result.get("error", "Unknown error")
+                        logger.warning(f"📷 Image analysis failed: {error_msg}")
+                        msg.body("""❌ फोटो का विश्लेषण नहीं हो सका।
+
+कृपया:
+• साफ और करीब से फोटो लें
+• पत्तों/प्रभावित भाग की फोटो भेजें
+• अच्छी रोशनी में फोटो लें
+
+🔄 फिर से कोशिश करें!""")
+                        _metrics_inc("wa_errors")
+                    
+                    return str(resp), 200, {"Content-Type": "application/xml"}
+                    
+                except Exception as e:
+                    logger.exception("Image processing error")
+                    msg.body("❌ फोटो प्रोसेस करने में समस्या हुई। कृपया टेक्स्ट में समस्या बताएं।\n\n📞 किसान हेल्पलाइन: 1551")
+                    _metrics_inc("wa_errors")
+                    return str(resp), 200, {"Content-Type": "application/xml"}
             
             # Handle other media types
             else:
