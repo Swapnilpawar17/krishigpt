@@ -1,478 +1,1474 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="mr">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>KrishiGPT - Retailer Pro</title>
-  <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
-  <style>
-    :root { --green:#16a34a; --dark-green:#14532d; --bg:#f0fdf4; }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin:0; background: var(--bg); color: #1f2937; }
-    .container { max-width: 900px; margin: 0 auto; padding: 12px; }
-    .card { background: #fff; border-radius: 12px; padding: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,.1); border: 1px solid #e5e7eb; }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KrishiGPT - AI कृषी सल्लागार | शेतकऱ्यांसाठी स्मार्ट मदत</title>
+    <meta name="description" content="KrishiGPT - भारताचा पहिला AI कृषी सल्लागार। पिकांचे रोग, कीड नियंत्रण, खते, सरकारी योजना - सर्व काही मराठीत.">
+    <meta name="keywords" content="कृषी, शेती, AI, मराठी, किसान, पीक, रोग, कीटक, खत, योजना, KrishiGPT">
+    <link rel="icon" type="image/x-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌾</text></svg>">
     
-    /* Header */
-    h1 { margin: 0; font-size: 1.5rem; color: var(--dark-green); display: flex; align-items: center; gap: 8px; }
-    .sub { color: #6b7280; margin: 4px 0 16px 0; font-size: 0.9rem; }
-    
-    /* Retailer Branding Section */
-    .retailer-section { background: #dcfce7; border: 1px solid #86efac; padding: 12px; margin-bottom: 15px; border-radius: 8px; }
-    .retailer-header { display: flex; justify-content: space-between; align-items: center; }
-    .retailer-title { font-weight: 700; color: var(--dark-green); font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; }
-    .retailer-toggle { color: var(--green); text-decoration: none; cursor: pointer; font-size: 12px; background: none; border: none; padding: 0; font-weight: 600; }
-    .retailer-form { display: none; margin-top: 10px; padding-top: 10px; border-top: 1px dashed #86efac; }
-    .retailer-form.show { display: block; }
-    .retailer-display { font-size: 14px; font-weight: bold; color: #15803d; margin-top: 4px; display: flex; align-items: center; gap: 6px; }
-
-    /* Chat Area */
-    #chat { height: 50vh; overflow-y: auto; padding: 12px; border: 1px solid #e5e7eb; border-radius: 12px; background:#f9fafb; margin-bottom: 12px; scroll-behavior: smooth; }
-    .msg { padding: 10px 14px; margin: 8px 0; border-radius: 12px; white-space: pre-wrap; position: relative; font-size: 14px; line-height: 1.5; max-width: 85%; }
-    .user { background: #e0f2fe; color: #075985; margin-left: auto; border-bottom-right-radius: 2px; }
-    .bot { background: #fff; border: 1px solid #e5e7eb; color: #1f2937; margin-right: auto; border-bottom-left-radius: 2px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-    
-    /* Share Button */
-    .share-btn { 
-      display: inline-flex; align-items: center; gap: 6px;
-      margin-top: 8px; padding: 6px 14px; 
-      background: #25D366; color: white; 
-      font-size: 12px; font-weight: bold; 
-      border-radius: 20px; text-decoration: none; 
-      border: none; cursor: pointer; transition: background 0.2s;
-    }
-    .share-btn:hover { background: #1ebc57; }
-
-    /* Inputs */
-    .row { display: flex; gap: 8px; align-items: center; }
-    input, select { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #d1d5db; font-size:15px; outline: none; transition: border-color 0.2s; }
-    input:focus, select:focus { border-color: var(--green); outline: 2px solid var(--green); }    
-    /* Buttons */
-    button { padding: 12px 16px; border: 0; border-radius: 8px; background: var(--green); color:#fff; cursor: pointer; font-weight: 600; font-size: 14px; transition: background 0.2s; }
-    button:hover { background: #15803d; }
-    button:disabled { background:#9ca3af; cursor:not-allowed; }
-    button.icon-btn { padding: 12px; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: 18px; }
-    
-    /* Mic Button */
-    #micBtn { background: #f3f4f6; color: #4b5563; border: 1px solid #d1d5db; }
-    #micBtn.listening { background: #fee2e2; color: #ef4444; border-color: #ef4444; animation: pulse 1.5s infinite; }
-    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
-
-    /* Modal */
-    .modal { position: fixed; inset:0; background: rgba(0,0,0,.5); display:none; align-items: center; justify-content: center; padding: 16px; z-index:999; backdrop-filter: blur(2px); }
-    .modal.show { display:flex; }
-    .box { width: 100%; max-width: 500px; background:#fff; border-radius: 16px; padding: 20px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); overflow-y:auto; max-height:90vh; }
-    .grid { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
-    .grid .full { grid-column: 1 / -1; }
-    .hint { color: #6b7280; font-size: 11px; margin-top:4px; }
-    .result { background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px; margin-top:16px; }
-    .close { background: transparent; color: #6b7280; font-size: 20px; padding: 4px; }
-    .close:hover { background: #f3f4f6; color: #000; }
-    .footer { color:#6b7280; font-size:11px; margin-top:16px; text-align:center; }
-    .hr { height:1px; background:#e5e7eb; margin: 16px 0; }
-    label { font-weight:600; font-size:13px; display:block; margin-bottom:4px; color: #374151; }
-    .top-actions { display:flex; gap:8px; justify-content:flex-end; margin-bottom:8px; }
-    .top-actions button { padding:6px 12px; font-size:12px; }
-    .btn-print { background: #3b82f6; }
-    .btn-print:hover { background: #2563eb; }
-
-    /* History */
-    .hist-item { padding: 10px; border-bottom: 1px solid #f3f4f6; display: flex; justify-content: space-between; align-items: center; }
-    .hist-info { flex: 1; }
-    .hist-name { font-weight: 600; color: #111827; font-size: 13px; }
-    .hist-prod { color: #6b7280; font-size: 12px; }
-    .btn-icon { padding: 6px 10px; font-size: 12px; border-radius: 6px; border:none; color:white; display: flex; align-items: center; gap: 4px; }
-    .btn-wa { background: #25D366; }
-    
-    /* Crop Select Area */
-    .crop-card { background: #fffbeb; border: 1px solid #fcd34d; padding: 10px; border-radius: 8px; margin-bottom: 12px; }
-
-    @media (max-width: 600px) {
-      .grid { grid-template-columns: 1fr; }
-      .container { padding: 8px; }
-      .card { padding: 12px; }
-    }
-  </style>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --primary: #2e7d32;
+            --primary-dark: #1b5e20;
+            --primary-light: #4caf50;
+            --secondary: #ff9800;
+            --bg-light: #f5f5f5;
+            --text-dark: #212121;
+            --text-light: #757575;
+            --white: #ffffff;
+            --shadow: 0 2px 10px rgba(0,0,0,0.1);
+            --shadow-lg: 0 4px 20px rgba(0,0,0,0.15);
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #e8f5e9 0%, #fff8e1 100%);
+            min-height: 100vh;
+            color: var(--text-dark);
+        }
+        
+        /* Navigation */
+        .navbar {
+            background: var(--white);
+            padding: 1rem 2rem;
+            box-shadow: var(--shadow);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+        
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--primary);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .logo-tagline {
+            font-size: 0.75rem;
+            color: var(--text-light);
+            font-weight: normal;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 1.5rem;
+            list-style: none;
+        }
+        
+        .nav-links a {
+            text-decoration: none;
+            color: var(--text-dark);
+            font-weight: 500;
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            transition: all 0.3s;
+        }
+        
+        .nav-links a:hover, .nav-links a.active {
+            background: var(--primary);
+            color: var(--white);
+        }
+        
+        /* Language Selector */
+        .lang-selector {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+        
+        .lang-btn {
+            padding: 0.4rem 0.8rem;
+            border: 2px solid var(--primary);
+            background: transparent;
+            color: var(--primary);
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        
+        .lang-btn.active {
+            background: var(--primary);
+            color: var(--white);
+        }
+        
+        .lang-btn:hover {
+            background: var(--primary-light);
+            color: var(--white);
+        }
+        
+        /* Tab Navigation */
+        .tab-container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            background: var(--white);
+            padding: 0.5rem;
+            border-radius: 10px;
+            box-shadow: var(--shadow);
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .tab-btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 500;
+            color: var(--text-light);
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .tab-btn:hover {
+            background: var(--bg-light);
+            color: var(--text-dark);
+        }
+        
+        .tab-btn.active {
+            background: var(--primary);
+            color: var(--white);
+        }
+        
+        .tab-btn .emoji {
+            font-size: 1.2rem;
+        }
+        
+        /* Tab Content */
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Chat Section */
+        .chat-container {
+            max-width: 800px;
+            margin: 2rem auto;
+            background: var(--white);
+            border-radius: 15px;
+            box-shadow: var(--shadow-lg);
+            overflow: hidden;
+        }
+        
+        .chat-header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: var(--white);
+            padding: 1.5rem;
+            text-align: center;
+        }
+        
+        .chat-header h1 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .chat-header p {
+            opacity: 0.9;
+            font-size: 0.9rem;
+        }
+        
+        .chat-messages {
+            height: 400px;
+            overflow-y: auto;
+            padding: 1.5rem;
+            background: #fafafa;
+        }
+        
+        .message {
+            margin-bottom: 1rem;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .message.user {
+            align-items: flex-end;
+        }
+        
+        .message.bot {
+            align-items: flex-start;
+        }
+        
+        .message-bubble {
+            max-width: 80%;
+            padding: 1rem;
+            border-radius: 15px;
+            line-height: 1.6;
+        }
+        
+        .message.user .message-bubble {
+            background: var(--primary);
+            color: var(--white);
+            border-bottom-right-radius: 5px;
+        }
+        
+        .message.bot .message-bubble {
+            background: var(--white);
+            border: 1px solid #e0e0e0;
+            border-bottom-left-radius: 5px;
+        }
+        
+        .chat-input-container {
+            display: flex;
+            padding: 1rem;
+            background: var(--white);
+            border-top: 1px solid #e0e0e0;
+            gap: 0.5rem;
+        }
+        
+        .chat-input {
+            flex: 1;
+            padding: 1rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 25px;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        
+        .chat-input:focus {
+            border-color: var(--primary);
+        }
+        
+        .send-btn {
+            padding: 1rem 1.5rem;
+            background: var(--primary);
+            color: var(--white);
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: background 0.3s;
+        }
+        
+        .send-btn:hover {
+            background: var(--primary-dark);
+        }
+        
+        .send-btn:disabled {
+            background: #bdbdbd;
+            cursor: not-allowed;
+        }
+        
+        /* Quick Action Buttons */
+        .quick-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem 1rem;
+            background: var(--white);
+        }
+        
+        .quick-btn {
+            padding: 0.5rem 1rem;
+            background: #e8f5e9;
+            border: 1px solid var(--primary-light);
+            border-radius: 20px;
+            color: var(--primary);
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.3s;
+        }
+        
+        .quick-btn:hover {
+            background: var(--primary);
+            color: var(--white);
+        }
+        
+        /* Schemes Section */
+        .schemes-container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+        
+        .schemes-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .schemes-header h2 {
+            color: var(--primary);
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .schemes-header p {
+            color: var(--text-light);
+        }
+        
+        .schemes-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        .scheme-card {
+            background: var(--white);
+            border-radius: 15px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            transition: transform 0.3s, box-shadow 0.3s;
+            cursor: pointer;
+        }
+        
+        .scheme-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-lg);
+        }
+        
+        .scheme-card-header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            color: var(--white);
+            padding: 1.5rem;
+        }
+        
+        .scheme-card-header h3 {
+            font-size: 1.1rem;
+            margin-bottom: 0.25rem;
+        }
+        
+        .scheme-card-header .short-name {
+            font-size: 0.85rem;
+            opacity: 0.9;
+        }
+        
+        .scheme-card-body {
+            padding: 1.5rem;
+        }
+        
+        .scheme-benefit {
+            background: #fff8e1;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            border-left: 4px solid var(--secondary);
+        }
+        
+        .scheme-benefit strong {
+            color: var(--secondary);
+        }
+        
+        .scheme-info {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-top: 1rem;
+        }
+        
+        .scheme-info-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+            color: var(--text-light);
+        }
+        
+        .view-details-btn {
+            width: 100%;
+            padding: 0.75rem;
+            background: var(--bg-light);
+            border: none;
+            color: var(--primary);
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .view-details-btn:hover {
+            background: #e8f5e9;
+        }
+        
+        /* Scheme Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+        }
+        
+        .modal-overlay.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: var(--white);
+            border-radius: 15px;
+            max-width: 600px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            animation: slideUp 0.3s ease;
+        }
+        
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(50px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .modal-header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: var(--white);
+            padding: 1.5rem;
+            position: relative;
+        }
+        
+        .modal-header h2 {
+            font-size: 1.3rem;
+            padding-right: 2rem;
+        }
+        
+        .modal-close {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: var(--white);
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1.2rem;
+            transition: background 0.3s;
+        }
+        
+        .modal-close:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        
+        .modal-body {
+            padding: 1.5rem;
+        }
+        
+        .modal-section {
+            margin-bottom: 1.5rem;
+        }
+        
+        .modal-section h4 {
+            color: var(--primary);
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .modal-section ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .modal-section li {
+            padding: 0.5rem 0;
+            padding-left: 1.5rem;
+            position: relative;
+        }
+        
+        .modal-section li::before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: var(--primary);
+            font-weight: bold;
+        }
+        
+        .modal-footer {
+            background: var(--bg-light);
+            padding: 1rem 1.5rem;
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        
+        .modal-footer a {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            background: var(--primary);
+            color: var(--white);
+            text-decoration: none;
+            border-radius: 25px;
+            font-weight: 500;
+            transition: background 0.3s;
+        }
+        
+        .modal-footer a:hover {
+            background: var(--primary-dark);
+        }
+        
+        .modal-footer a.secondary {
+            background: var(--white);
+            color: var(--primary);
+            border: 2px solid var(--primary);
+        }
+        
+        /* Calculator Section */
+        .calculator-container {
+            max-width: 600px;
+            margin: 2rem auto;
+            background: var(--white);
+            border-radius: 15px;
+            box-shadow: var(--shadow-lg);
+            overflow: hidden;
+        }
+        
+        .calc-header {
+            background: linear-gradient(135deg, var(--secondary) 0%, #f57c00 100%);
+            color: var(--white);
+            padding: 1.5rem;
+            text-align: center;
+        }
+        
+        .calc-body {
+            padding: 2rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: var(--text-dark);
+        }
+        
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+        
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--secondary);
+        }
+        
+        .form-hint {
+            font-size: 0.8rem;
+            color: var(--text-light);
+            margin-top: 0.25rem;
+        }
+        
+        .calc-btn {
+            width: 100%;
+            padding: 1rem;
+            background: var(--secondary);
+            color: var(--white);
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .calc-btn:hover {
+            background: #f57c00;
+        }
+        
+        .calc-result {
+            margin-top: 1.5rem;
+            padding: 1.5rem;
+            background: #e8f5e9;
+            border-radius: 10px;
+            display: none;
+        }
+        
+        .calc-result.active {
+            display: block;
+        }
+        
+        .calc-result h4 {
+            color: var(--primary);
+            margin-bottom: 1rem;
+        }
+        
+        .result-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+        
+        .result-item {
+            background: var(--white);
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .result-item .value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--primary);
+        }
+        
+        .result-item .label {
+            font-size: 0.85rem;
+            color: var(--text-light);
+        }
+        
+        /* Features Section */
+        .features-container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+        
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        .feature-card {
+            background: var(--white);
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: var(--shadow);
+            text-align: center;
+            transition: transform 0.3s;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        
+        .feature-card h3 {
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+        }
+        
+        .feature-card p {
+            color: var(--text-light);
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+        
+        /* Stats Banner */
+        .stats-banner {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: var(--white);
+            padding: 2rem;
+            margin: 2rem 0;
+        }
+        
+        .stats-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            gap: 2rem;
+        }
+        
+        .stat-item {
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+        }
+        
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+        
+        /* WhatsApp Float Button */
+        .whatsapp-float {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: #25d366;
+            color: var(--white);
+            padding: 1rem 1.5rem;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 500;
+            box-shadow: var(--shadow-lg);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            z-index: 1000;
+            transition: transform 0.3s, background 0.3s;
+        }
+        
+        .whatsapp-float:hover {
+            transform: scale(1.05);
+            background: #128c7e;
+        }
+        
+        /* Footer */
+        .footer {
+            background: var(--primary-dark);
+            color: var(--white);
+            padding: 2rem;
+            text-align: center;
+            margin-top: 3rem;
+        }
+        
+        .footer a {
+            color: #a5d6a7;
+            text-decoration: none;
+        }
+        
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+            
+            .tabs {
+                flex-direction: column;
+            }
+            
+            .tab-btn {
+                width: 100%;
+                justify-content: center;
+            }
+            
+            .schemes-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .result-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .whatsapp-float span {
+                display: none;
+            }
+            
+            .stats-container {
+                gap: 1rem;
+            }
+            
+            .stat-value {
+                font-size: 1.8rem;
+            }
+            
+            .chat-header h1 {
+                font-size: 1.2rem;
+            }
+        }
+        
+        /* Loading Spinner */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Typing indicator */
+        .typing-indicator {
+            display: flex;
+            gap: 5px;
+            padding: 1rem;
+            background: var(--white);
+            border-radius: 15px;
+            width: fit-content;
+        }
+        
+        .typing-indicator span {
+            width: 8px;
+            height: 8px;
+            background: var(--primary);
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out;
+        }
+        
+        .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+        
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+        
+        /* Disclaimer */
+        .disclaimer {
+            background: #fff3e0;
+            border-left: 4px solid var(--secondary);
+            padding: 1rem;
+            margin: 1rem;
+            border-radius: 0 8px 8px 0;
+            font-size: 0.85rem;
+        }
+    </style>
 </head>
 <body>
-  <div class="container">
-    <div class="card">
-      <h1>🌾 KrishiGPT <span style="font-size:10px; background:#dcfce7; color:#166534; padding:2px 6px; border-radius:99px;">PRO</span></h1>
-      <p class="sub">AI Agronomy Assistant & Retailer Tools</p>
-
-      <!-- RETAILER BRANDING -->
-      <div class="retailer-section">
-        <div class="retailer-header">
-          <div>
-            <div class="retailer-title">🏪 Shop Branding</div>
-            <div id="shopDisplay" class="retailer-display">Using Default Settings</div>
-          </div>
-          <button class="retailer-toggle" onclick="toggleShopSettings()">⚙️ Edit Shop Info</button>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="#" class="logo">
+                🌾 KrishiGPT
+                <span class="logo-tagline">शेतकऱ्यांचा AI मित्र</span>
+            </a>
+            <ul class="nav-links">
+                <li><a href="#chat" class="active">AI सल्लागार</a></li>
+                <li><a href="#schemes">सरकारी योजना</a></li>
+                <li><a href="#calculator">डोस कॅल्क्युलेटर</a></li>
+            </ul>
         </div>
-        
-        <div id="shopSettings" class="retailer-form">
-          <div class="grid" style="grid-template-columns: 1fr; gap: 8px;">
-            <input type="text" id="shopNameInput" placeholder="Enter Shop Name (e.g. Patil Krishi Seva)">
-            <input type="text" id="shopPhoneInput" placeholder="Mobile Number (e.g. 98220xxxxx)">
-            <button onclick="saveShopDetails()">✅ Save Settings</button>
-          </div>
-        </div>
-      </div>
+    </nav>
 
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <button id="openCalcBtn" style="background:#4f46e5; width:100%;">🧮 Open Dosage Calculator</button>
-      </div>
-
-      <!-- CROP CONTEXT -->
-      <div class="crop-card">
-        <div style="font-size:12px; font-weight:700; color:#b45309; margin-bottom:6px; text-transform:uppercase;">
-          🌱 Crop Context (Optional)
+    <!-- Tab Navigation -->
+    <div class="tab-container">
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="chat">
+                <span class="emoji">💬</span>
+                AI कृषी सल्लागार
+            </button>
+            <button class="tab-btn" data-tab="schemes">
+                <span class="emoji">🏛️</span>
+                सरकारी योजना
+            </button>
+            <button class="tab-btn" data-tab="calculator">
+                <span class="emoji">🧮</span>
+                डोस कॅल्क्युलेटर
+            </button>
+            <button class="tab-btn" data-tab="features">
+                <span class="emoji">⭐</span>
+                वैशिष्ट्ये
+            </button>
         </div>
-        <div style="display:flex; gap:8px;">
-          <select id="cropSelect">
-            <option value="">Select Crop...</option>
-            <option value="grapes">🍇 Grapes (द्राक्ष)</option>
-            <option value="pomegranate">🍎 Pomegranate (डाळिंब)</option>
-            <option value="tomato">🍅 Tomato (टोमॅटो)</option>
-            <option value="onion">🧅 Onion (कांदा)</option>
-            <option value="cotton">☁️ Cotton (कापूस)</option>
-            <option value="soybean">🌱 Soybean (सोयाबीन)</option>
-            <option value="sugarcane">🎋 Sugarcane (ऊस)</option>
-          </select>
-          <input id="sowingDate" type="date" style="max-width: 130px;"/>
-        </div>
-      </div>
-
-      <div id="chat"></div>
-      
-      <div class="row">
-        <!-- Voice Input Button -->
-        <button id="micBtn" class="icon-btn" onclick="toggleVoice()" title="Speak">🎤</button>
-        
-        <input id="msg" placeholder="Ask in Marathi/Hindi..."/>
-        <button id="send" class="icon-btn" style="background:var(--green);">➤</button>
-      </div>
-      
-      <div class="footer">
-        ⚠️ Disclaimer: AI advice. Always check product label.
-      </div>
     </div>
-  </div>
 
-  <!-- MODAL: DOSAGE & CRM -->
-  <div id="calcModal" class="modal">
-    <div class="box">
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <h3 id="calcTitle" style="margin:0;">🧮 Dosage Calculator</h3>
-        <button id="closeCalcBtn" class="close">✕</button>
-      </div>
-      <div class="hr"></div>
-
-      <div class="grid">
-        <div class="full">
-          <label>Farmer Name (शेतकरी)</label>
-          <input id="c_farmer" placeholder="e.g. Ram Patil"/>
-        </div>
-        <div class="full">
-          <label>Product Name (औषध)</label>
-          <input id="c_product" placeholder="e.g. Confidor"/>
-        </div>
-        <div>
-          <label>Unit (एकक)</label>
-          <select id="c_unit">
-            <option value="ml_per_l">ml per Litre</option>
-            <option value="g_per_l">gm per Litre</option>
-            <option value="ml_per_acre">ml per Acre</option>
-            <option value="g_per_acre">gm per Acre</option>
-          </select>
-        </div>
-        <div>
-          <label>Rate (प्रमाण)</label>
-          <input id="c_rate" type="number" step="any" placeholder="0.0"/>
-        </div>
-        <div>
-          <label>Tank Size (L)</label>
-          <input id="c_tank" type="number" step="any" placeholder="15"/>
-        </div>
-        <div>
-          <label>Area (Acre)</label>
-          <input id="c_area" type="number" step="any" value="1"/>
-        </div>
-        <div class="full">
-           <label>Spray Volume (L/Acre) <span style="font-weight:normal;color:#888;font-size:10px;">(Auto: 200)</span></label>
-           <input id="c_spray" type="number" step="any" placeholder="200"/>
-        </div>
-        
-        <div class="full">
-          <button id="calcBtn" style="width:100%">Calculate Dosage</button>
-        </div>
-
-        <div class="full">
-          <div id="calcOut" class="result" style="display:none;"></div>
-        </div>
-      </div>
-
-      <!-- HISTORY -->
-      <div class="hr"></div>
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-        <h4 style="margin:0; font-size:13px; color:#1f2937;">📜 Customer History</h4>
-        <button onclick="clearHistory()" style="font-size:10px; padding:4px 8px; background:#ef4444;">Clear All</button>
-      </div>
-      
-      <div id="historyList" style="max-height: 150px; overflow-y: auto;">
-        <!-- JS fills this -->
-      </div>
-    </div>
-  </div>
-
-  <script>
-    const API_KEY = ""; 
-
-    // --- 1. RETAILER BRANDING ---
-    document.addEventListener('DOMContentLoaded', function() {
-        const savedName = localStorage.getItem('krishiShopName');
-        const savedPhone = localStorage.getItem('krishiShopPhone');
-        if (savedName) {
-            document.getElementById('shopNameInput').value = savedName;
-            document.getElementById('shopPhoneInput').value = savedPhone || '';
-            updateShopDisplay(savedName, savedPhone);
-        }
-        renderHistory();
-        
-        // Hide mic if not supported
-        if (!('webkitSpeechRecognition' in window)) {
-            document.getElementById('micBtn').style.display = 'none';
-        }
-    });
-
-    function toggleShopSettings() {
-        document.getElementById('shopSettings').classList.toggle('show');
-    }
-
-    function saveShopDetails() {
-        const name = document.getElementById('shopNameInput').value.trim();
-        const phone = document.getElementById('shopPhoneInput').value.trim();
-        if (name) {
-            localStorage.setItem('krishiShopName', name);
-            localStorage.setItem('krishiShopPhone', phone);
-            updateShopDisplay(name, phone);
-            toggleShopSettings();
-        } else {
-            alert('Shop Name is required');
-        }
-    }
-
-    function updateShopDisplay(name, phone) {
-        document.getElementById('shopDisplay').innerHTML = `🏪 ${name} ${phone ? '<span style="color:#6b7280; font-weight:normal;">| 📞 ' + phone + '</span>' : ''}`;
-    }
-
-    function createWhatsAppLink(adviceText) {
-        const shopName = localStorage.getItem('krishiShopName') || "KrishiGPT Advisor";
-        const shopPhone = localStorage.getItem('krishiShopPhone') || "";
-        const message = `*🏪 ${shopName}*\n${shopPhone ? '📞 ' + shopPhone + '\n' : ''}──────────────────\n*Advice:*\n\n${adviceText}\n\n──────────────────\n✅ Verified by KrishiGPT`;
-        return `https://wa.me/?text=${encodeURIComponent(message)}`;
-    }
-
-    // --- 2. VOICE INPUT (New!) ---
-    let recognition;
-    if ('webkitSpeechRecognition' in window) {
-        recognition = new webkitSpeechRecognition();
-        recognition.continuous = false;
-        recognition.lang = 'hi-IN'; // Default Hindi/Marathi mix
-        
-        recognition.onstart = function() {
-            document.getElementById('micBtn').classList.add('listening');
-        };
-        
-        recognition.onend = function() {
-            document.getElementById('micBtn').classList.remove('listening');
-        };
-        
-        recognition.onresult = function(event) {
-            const transcript = event.results[0][0].transcript;
-            document.getElementById('msg').value = transcript;
-        };
-    }
-
-    function toggleVoice() {
-        if (recognition) {
-            recognition.start();
-        } else {
-            alert("Voice input not supported in this browser. Use Chrome.");
-        }
-    }
-
-    // --- 3. CHAT LOGIC ---
-    const chat = document.getElementById('chat');
-    const input = document.getElementById('msg');
-    const btn = document.getElementById('send');
-
-    function addMsg(text, who) {
-      const div = document.createElement('div');
-      div.className = 'msg ' + (who === 'user' ? 'user' : 'bot');
-      div.textContent = text;
-      
-      if (who === 'bot') {
-        const shareBtn = document.createElement('a');
-        shareBtn.className = 'share-btn';
-        shareBtn.innerHTML = '<span>📲 Share</span>';
-        shareBtn.href = createWhatsAppLink(text);
-        shareBtn.target = '_blank';
-        div.appendChild(document.createElement('br'));
-        div.appendChild(shareBtn);
-      }
-      chat.appendChild(div);
-      chat.scrollTop = chat.scrollHeight;
-    }
-
-    async function send() {
-      const text = input.value.trim();
-      if (!text) return;
-      addMsg(text, 'user');
-      input.value = '';
-      btn.disabled = true;
-
-      const crop = document.getElementById('cropSelect').value || null;
-      const sowingDate = document.getElementById('sowingDate').value || null;
-      const payload = { message: text };
-      if (crop) payload.crop = crop;
-      if (sowingDate) payload.sowing_date = sowingDate;
-
-      try {
-        const res = await fetch('/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        const data = await res.json();
-        if (data.success) addMsg(data.response, 'bot');
-        else addMsg('Error: ' + (data.error || 'unknown'), 'bot');
-      } catch (e) {
-        addMsg('Network error', 'bot');
-      } finally {
-        btn.disabled = false;
-      }
-    }
-    btn.onclick = send;
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
-
-    // --- 4. CALCULATOR & PRINTING ---
-    const calcModal = document.getElementById('calcModal');
-    const calcOut = document.getElementById('calcOut');
-    
-    document.getElementById('openCalcBtn').onclick = () => calcModal.classList.add('show');
-    document.getElementById('closeCalcBtn').onclick = () => calcModal.classList.remove('show');
-
-    function val(id) { return document.getElementById(id).value.trim() || null; }
-    function num(v) { return v ? parseFloat(v) : null; }
-    function fmt(x) { return x ? Number(x).toFixed(2) : '-'; }
-
-    // PRINT BILL FUNCTION
-    function printBill(data) {
-        const shopName = localStorage.getItem('krishiShopName') || "Krishi Seva";
-        const w = window.open('', '', 'width=350,height=600');
-        w.document.write(`
-            <html><head><style>
-                body { font-family: monospace; font-size: 12px; width: 300px; padding: 10px; }
-                .center { text-align: center; }
-                hr { border-top: 1px dashed #000; }
-                .row { display: flex; justify-content: space-between; }
-                .bold { font-weight: bold; }
-            </style></head><body>
-                <div class="center">
-                    <h3 style="margin:0">${shopName}</h3>
-                    <div>Dosage Receipt</div>
-                    <hr>
-                </div>
-                <div>Customer: ${data.input.farmer || 'Walk-in'}</div>
-                <div>Product: ${data.input.product || '-'}</div>
-                <hr>
-                <div class="row"><span>Per 15L Pump:</span> <span class="bold">${fmt(data.results.per_tank.amount)} ${data.results.per_tank.unit}</span></div>
-                <div class="row"><span>Per Acre:</span> <span>${fmt(data.results.per_acre.amount)} ${data.results.per_acre.unit}</span></div>
-                <div class="row"><span>Tanks Needed:</span> <span>${fmt(data.results.tanks_needed)}</span></div>
-                <hr>
-                <div class="center">Thank You!<br>Powered by KrishiGPT</div>
-            </body></html>
-        `);
-        w.print();
-        w.close();
-    }
-
-    document.getElementById('calcBtn').onclick = async () => {
-        const product = val('c_product');
-        const unit = val('c_unit');
-        const rate = num(val('c_rate'));
-        const tank = num(val('c_tank'));
-        const spray = num(val('c_spray'));
-        const area = num(val('c_area'));
-        const farmer = val('c_farmer');
-
-        if (!unit || rate == null) { alert('Unit and Rate are required'); return; }
-
-        const payload = { unit, rate, product, tank_size_l: tank, spray_volume_l_per_acre: spray, area_acre: area };
-        
-        try {
-            const res = await fetch('/api/calc/dose', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
-            const raw = await res.json();
-            const data = raw.data;
-            
-            // Render Result
-            if(!data.input) data.input = {};
-            data.input.farmer = farmer;
-            data.input.product = product;
-
-            calcOut.innerHTML = `
-                <div class="top-actions">
-                  <button class="btn-print" id="printBtn">🖨️ Print Slip</button>
-                </div>
-                <div style="font-family:monospace; line-height:1.6;">
-                  <b>Per Pump (${data.input.tank_size_l}L):</b> <span style="color:#16a34a; font-weight:bold; font-size:16px;">${fmt(data.results.per_tank.amount)} ${data.results.per_tank.unit}</span><br/>
-                  <b>Per Acre:</b> ${fmt(data.results.per_acre.amount)} ${data.results.per_acre.unit}<br/>
-                  <b>Total Tanks:</b> ${fmt(data.results.tanks_needed)}
-                </div>
-            `;
-            calcOut.style.display = 'block';
-
-            // Bind Print Button
-            document.getElementById('printBtn').onclick = () => printBill(data);
-
-            // Save to History
-            addToHistory(farmer, product);
-
-        } catch(e) {
-            alert("Calculation Error: " + e.message);
-        }
-    };
-
-    // --- 5. CRM HISTORY ---
-    function addToHistory(name, product) {
-        if (!name && !product) return;
-        const entry = { id: Date.now(), date: new Date().toLocaleDateString('en-IN'), name: name || 'Guest', product: product || 'Advice' };
-        let history = JSON.parse(localStorage.getItem('krishiHistory') || '[]');
-        history.unshift(entry);
-        if (history.length > 20) history.pop();
-        localStorage.setItem('krishiHistory', JSON.stringify(history));
-        renderHistory();
-    }
-
-    function renderHistory() {
-        const list = document.getElementById('historyList');
-        const history = JSON.parse(localStorage.getItem('krishiHistory') || '[]');
-        if (history.length === 0) { list.innerHTML = '<div style="padding:10px;text-align:center;color:#999;">No history yet</div>'; return; }
-        
-        list.innerHTML = history.map(item => `
-            <div class="hist-item">
-                <div class="hist-info"><div class="hist-name">${item.name}</div><div class="hist-prod">${item.product}</div></div>
-                <button class="btn-icon btn-wa" onclick="followUp('${item.product}', '${item.name}')">📢 Follow-up</button>
+    <!-- Chat Tab -->
+    <div id="chat" class="tab-content active">
+        <div class="chat-container">
+            <div class="chat-header">
+                <h1>🌾 KrishiGPT - AI कृषी सल्लागार</h1>
+                <p>पिकांचे रोग, कीड नियंत्रण, खते - काहीही विचारा!</p>
             </div>
-        `).join('');
-    }
+            
+            <div class="chat-messages" id="chatMessages">
+                <div class="message bot">
+                    <div class="message-bubble">
+                        🙏 नमस्कार! मी KrishiGPT, तुमचा AI कृषी सल्लागार.
+                        <br><br>
+                        मला विचारा:
+                        <br>• 🌱 पिकांचे रोग आणि उपचार
+                        <br>• 🐛 कीड नियंत्रणाचे उपाय
+                        <br>• 🧪 खते आणि औषधांची माहिती
+                        <br>• 🏛️ सरकारी योजना
+                        <br><br>
+                        तुमचा प्रश्न मराठी किंवा हिंदीत विचारा! 👇
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Quick Action Buttons -->
+            <div class="quick-actions">
+                <button class="quick-btn" onclick="askQuickQuestion('कापसावरील बोंडअळीचे नियंत्रण कसे करावे?')">🐛 बोंडअळी</button>
+                <button class="quick-btn" onclick="askQuickQuestion('टोमॅटोची पाने पिवळी का पडतात?')">🍅 टोमॅटो</button>
+                <button class="quick-btn" onclick="askQuickQuestion('सोयाबीनमध्ये तण नियंत्रण')">🌿 सोयाबीन</button>
+                <button class="quick-btn" onclick="askQuickQuestion('PM-KISAN योजना म्हणजे काय?')">🏛️ PM-KISAN</button>
+            </div>
+            
+            <div class="chat-input-container">
+                <input type="text" class="chat-input" id="chatInput" placeholder="तुमचा प्रश्न इथे लिहा..." autocomplete="off">
+                <button class="send-btn" id="sendBtn" onclick="sendMessage()">पाठवा</button>
+            </div>
+            
+            <div class="disclaimer">
+                ⚠️ <strong>सूचना:</strong> ही AI आधारित सल्ला आहे. गंभीर समस्यांसाठी जवळच्या KVK किंवा कृषी अधिकाऱ्यांशी संपर्क साधा.
+            </div>
+        </div>
+    </div>
 
-    window.followUp = (prod, name) => {
-        const shop = localStorage.getItem('krishiShopName') || "Krishi Seva";
-        const txt = `Namaskar ${name} ji! From: *${shop}*\n\nHow were the results of *${prod}*? Any issues?\n\n-- ${shop}`;
-        window.open(`https://wa.me/?text=${encodeURIComponent(txt)}`, '_blank');
-    };
+    <!-- Schemes Tab -->
+    <div id="schemes" class="tab-content">
+        <div class="schemes-container">
+            <div class="schemes-header">
+                <h2>🏛️ सरकारी कृषी योजना</h2>
+                <p>शेतकऱ्यांसाठी केंद्र आणि राज्य सरकारच्या प्रमुख योजना</p>
+            </div>
+            
+            <div class="schemes-grid" id="schemesGrid">
+                <!-- Schemes will be loaded here -->
+                <div style="text-align: center; padding: 2rem; color: var(--text-light);">
+                    <div class="loading" style="border-color: var(--primary); border-top-color: transparent; width: 40px; height: 40px;"></div>
+                    <p style="margin-top: 1rem;">योजना लोड होत आहेत...</p>
+                </div>
+            </div>
+        </div>
+    </div>
 
-    window.clearHistory = () => { if(confirm('Clear history?')) { localStorage.removeItem('krishiHistory'); renderHistory(); } };
-  </script>
+    <!-- Calculator Tab -->
+    <div id="calculator" class="tab-content">
+        <div class="calculator-container">
+            <div class="calc-header">
+                <h2>🧮 औषध डोस कॅल्क्युलेटर</h2>
+                <p>अचूक मात्रा मोजा - पैसे वाचवा!</p>
+            </div>
+            
+            <div class="calc-body">
+                <div class="form-group">
+                    <label for="productName">औषध / उत्पादनाचे नाव</label>
+                    <input type="text" id="productName" placeholder="उदा: इमिडाक्लोप्रिड 17.8 SL">
+                    <div class="form-hint">कंपनीचे नाव किंवा जेनेरिक नाव लिहा</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="doseUnit">डोस प्रकार</label>
+                    <select id="doseUnit">
+                        <option value="ml_per_l">ml प्रति लिटर पाणी</option>
+                        <option value="g_per_l">ग्राम प्रति लिटर पाणी</option>
+                        <option value="ml_per_acre">ml प्रति एकर</option>
+                        <option value="g_per_acre">ग्राम प्रति एकर</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="doseRate">डोस प्रमाण (लेबलनुसार)</label>
+                    <input type="number" id="doseRate" placeholder="उदा: 0.5" step="0.01">
+                    <div class="form-hint">बाटलीवरील लेबल पहा</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="tankSize">पंप/टाकीचा आकार (लिटर)</label>
+                    <input type="number" id="tankSize" placeholder="उदा: 16" value="16">
+                </div>
+                
+                <div class="form-group">
+                    <label for="sprayVolume">फवारणी पाणी (लिटर/एकर)</label>
+                    <input type="number" id="sprayVolume" placeholder="उदा: 200" value="200">
+                </div>
+                
+                <div class="form-group">
+                    <label for="areaAcre">शेताचे क्षेत्रफळ (एकर)</label>
+                    <input type="number" id="areaAcre" placeholder="उदा: 1" value="1" step="0.1">
+                </div>
+                
+                <button class="calc-btn" onclick="calculateDose()">📊 गणना करा</button>
+                
+                <div class="calc-result" id="calcResult">
+                    <h4>✅ निकाल:</h4>
+                    <div class="result-grid" id="resultGrid">
+                        <!-- Results will appear here -->
+                    </div>
+                    <p style="margin-top: 1rem; font-size: 0.85rem; color: var(--text-light);">
+                        ⚠️ हे अंदाजे गणना आहे. नेहमी उत्पादनाचे लेबल वाचा आणि त्याप्रमाणे वापर करा.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Features Tab -->
+    <div id="features" class="tab-content">
+        <div class="features-container">
+            <div class="schemes-header">
+                <h2>⭐ KrishiGPT ची वैशिष्ट्ये</h2>
+                <p>भारतातील सर्वात स्मार्ट AI कृषी सहाय्यक</p>
+            </div>
+            
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🎤</div>
+                    <h3>आवाजात विचारा</h3>
+                    <p>WhatsApp वर Voice Note पाठवा - टाइप करण्याची गरज नाही! मराठी किंवा हिंदीत बोला.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">📷</div>
+                    <h3>फोटो पाठवा</h3>
+                    <p>पिकाच्या रोगाचा फोटो पाठवा, AI लगेच ओळखेल आणि उपचार सांगेल.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">💊</div>
+                    <h3>योग्य औषध सल्ला</h3>
+                    <p>IPM-आधारित उपचार आणि योग्य डोस माहिती. पैसे वाचवा, पीक वाचवा!</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">🏛️</div>
+                    <h3>सरकारी योजना</h3>
+                    <p>PM-KISAN, PMFBY, KCC सारख्या योजनांची संपूर्ण माहिती आणि अर्ज प्रक्रिया.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">🗣️</div>
+                    <h3>मराठी / हिंदी</h3>
+                    <p>तुमच्या भाषेत विचारा, तुमच्या भाषेत उत्तर मिळवा. कोणताही अडथळा नाही!</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">📱</div>
+                    <h3>WhatsApp वर उपलब्ध</h3>
+                    <p>नवीन App डाउनलोड करण्याची गरज नाही - WhatsApp वरच सर्व सुविधा!</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Stats Banner -->
+        <div class="stats-banner">
+            <div class="stats-container">
+                <div class="stat-item">
+                    <div class="stat-value">🌾 50+</div>
+                    <div class="stat-label">पिकांची माहिती</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">🐛 100+</div>
+                    <div class="stat-label">रोग आणि कीड</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">🏛️ 15+</div>
+                    <div class="stat-label">सरकारी योजना</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">📞 24/7</div>
+                    <div class="stat-label">उपलब्ध</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scheme Modal -->
+    <div class="modal-overlay" id="schemeModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">योजनेचे नाव</h2>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Content loaded dynamically -->
+            </div>
+            <div class="modal-footer" id="modalFooter">
+                <!-- Links loaded dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- WhatsApp Float Button -->
+    <a href="https://wa.me/917020476015?text=नमस्कार" class="whatsapp-float" target="_blank">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+        </svg>
+        <span>WhatsApp वर विचारा</span>
+    </a>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p>🌾 <strong>KrishiGPT</strong> - AI कृषी सल्लागार</p>
+        <p style="margin-top: 0.5rem; opacity: 0.8;">
+            शेतकऱ्यांसाठी ❤️ ने बनवले | महाराष्ट्र, भारत
+        </p>
+        <div class="footer-links">
+            <a href="/api/docs">API Docs</a>
+            <a href="/health">Status</a>
+            <a href="tel:1551">📞 किसान हेल्पलाइन: 1551</a>
+        </div>
+        <p style="margin-top: 1rem; font-size: 0.8rem; opacity: 0.6;">
+            ⚠️ ही AI आधारित सल्ला आहे. गंभीर समस्यांसाठी स्थानिक KVK किंवा कृषी तज्ञांशी संपर्क साधा.
+        </p>
+    </footer>
+
+    <script>
+        // Tab switching
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                // Remove active from all tabs
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                
+                // Add active to clicked tab
+                btn.classList.add('active');
+                document.getElementById(btn.dataset.tab).classList.add('active');
+                
+                // Load schemes if switching to schemes tab
+                if (btn.dataset.tab === 'schemes') {
+                    loadSchemes();
+                }
+            });
+        });
+
+        // User ID for chat
+        let userId = localStorage.getItem('krishigpt_user_id');
+        if (!userId) {
+            userId = 'web_' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('krishigpt_user_id', userId);
+        }
+
+        // Chat functionality
+        const chatMessages = document.getElementById('chatMessages');
+        const chatInput = document.getElementById('chatInput');
+        const sendBtn = document.getElementById('sendBtn');
+
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        function addMessage(text, isUser) {
+            const div = document.createElement('div');
+            div.className = `message ${isUser ? 'user' : 'bot'}`;
+            div.innerHTML = `<div class="message-bubble">${text.replace(/\n/g, '<br>')}</div>`;
+            chatMessages.appendChild(div);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function showTyping() {
+            const div = document.createElement('div');
+            div.className = 'message bot';
+            div.id = 'typing';
+            div.innerHTML = `<div class="typing-indicator"><span></span><span></span><span></span></div>`;
+            chatMessages.appendChild(div);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function hideTyping() {
+            const typing = document.getElementById('typing');
+            if (typing) typing.remove();
+        }
+
+        async function sendMessage() {
+            const message = chatInput.value.trim();
+            if (!message) return;
+
+            addMessage(message, true);
+            chatInput.value = '';
+            sendBtn.disabled = true;
+            showTyping();
+
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message, user_id: userId })
+                });
+
+                const data = await response.json();
+                hideTyping();
+
+                if (data.success) {
+                    addMessage(data.response, false);
+                } else {
+                    addMessage('❌ ' + (data.error || 'काहीतरी चूक झाली'), false);
+                }
+            } catch (error) {
+                hideTyping();
+                addMessage('❌ नेटवर्क समस्या. कृपया पुन्हा प्रयत्न करा.', false);
+            }
+
+            sendBtn.disabled = false;
+            chatInput.focus();
+        }
+
+        // Quick question function
+        function askQuickQuestion(question) {
+            chatInput.value = question;
+            sendMessage();
+        }
+
+        // Schemes functionality
+        let schemesLoaded = false;
+
+        async function loadSchemes() {
+            if (schemesLoaded) return;
+
+            try {
+                const response = await fetch('/api/schemes');
+                const data = await response.json();
+
+                if (data.success) {
+                    const grid = document.getElementById('schemesGrid');
+                    grid.innerHTML = '';
+
+                    data.schemes.forEach(scheme => {
+                        const card = document.createElement('div');
+                        card.className = 'scheme-card';
+                        card.onclick = () => openSchemeModal(scheme.id);
+                        
+                        card.innerHTML = `
+                            <div class="scheme-card-header">
+                                <h3>${scheme.short_name}</h3>
+                                <div class="short-name">${scheme.name}</div>
+                            </div>
+                            <div class="scheme-card-body">
+                                <div class="scheme-benefit">
+                                    <strong>💰 लाभ:</strong> ${scheme.benefit}
+                                </div>
+                                <div class="scheme-info">
+                                    <div class="scheme-info-item">
+                                        📞 ${scheme.helpline}
+                                    </div>
+                                    ${scheme.website ? `<div class="scheme-info-item">🌐 ${scheme.website}</div>` : ''}
+                                </div>
+                            </div>
+                            <button class="view-details-btn">संपूर्ण माहिती पहा →</button>
+                        `;
+                        
+                        grid.appendChild(card);
+                    });
+
+                    schemesLoaded = true;
+                }
+            } catch (error) {
+                console.error('Error loading schemes:', error);
+                document.getElementById('schemesGrid').innerHTML = 
+                    '<p style="text-align:center; color:red;">योजना लोड होऊ शकल्या नाहीत. कृपया रिफ्रेश करा.</p>';
+            }
+        }
+
+        async function openSchemeModal(schemeId) {
+            try {
+                const response = await fetch(`/api/schemes/${schemeId}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    const scheme = data.scheme;
+                    
+                    document.getElementById('modalTitle').textContent = scheme.name;
+                    
+                    let bodyHtml = `
+                        <div class="modal-section">
+                            <div class="scheme-benefit" style="font-size: 1.1rem;">
+                                <strong>💰 लाभ:</strong> ${scheme.benefit}
+                            </div>
+                        </div>
+                    `;
+
+                    if (scheme.eligibility) {
+                        bodyHtml += `
+                            <div class="modal-section">
+                                <h4>✅ पात्रता</h4>
+                                <ul>${scheme.eligibility.map(e => `<li>${e}</li>`).join('')}</ul>
+                            </div>
+                        `;
+                    }
+
+                    if (scheme.documents) {
+                        bodyHtml += `
+                            <div class="modal-section">
+                                <h4>📄 आवश्यक कागदपत्रे</h4>
+                                <ul>${scheme.documents.map(d => `<li>${d}</li>`).join('')}</ul>
+                            </div>
+                        `;
+                    }
+
+                    if (scheme.how_to_apply) {
+                        bodyHtml += `
+                            <div class="modal-section">
+                                <h4>📝 अर्ज कसा करावा</h4>
+                                <ul>${scheme.how_to_apply.map(s => `<li>${s}</li>`).join('')}</ul>
+                            </div>
+                        `;
+                    }
+
+                    if (scheme.exclusions) {
+                        bodyHtml += `
+                            <div class="modal-section">
+                                <h4>❌ अपात्र</h4>
+                                <ul>${scheme.exclusions.map(e => `<li style="color: #c62828;">${e}</li>`).join('')}</ul>
+                            </div>
+                        `;
+                    }
+
+                    document.getElementById('modalBody').innerHTML = bodyHtml;
+
+                    let footerHtml = '';
+                    if (scheme.website) {
+                        footerHtml += `<a href="https://${scheme.website}" target="_blank">🌐 वेबसाइट उघडा</a>`;
+                    }
+                    if (scheme.helpline) {
+                        footerHtml += `<a href="tel:${scheme.helpline.split('/')[0].trim()}" class="secondary">📞 ${scheme.helpline}</a>`;
+                    }
+                    document.getElementById('modalFooter').innerHTML = footerHtml;
+
+                    document.getElementById('schemeModal').classList.add('active');
+                }
+            } catch (error) {
+                console.error('Error loading scheme details:', error);
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('schemeModal').classList.remove('active');
+        }
+
+        // Close modal on overlay click
+        document.getElementById('schemeModal').addEventListener('click', (e) => {
+            if (e.target.id === 'schemeModal') closeModal();
+        });
+
+        // Close modal on Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeModal();
+        });
+
+        // Calculator functionality
+        async function calculateDose() {
+            const payload = {
+                product: document.getElementById('productName').value,
+                unit: document.getElementById('doseUnit').value,
+                rate: parseFloat(document.getElementById('doseRate').value),
+                tank_size_l: parseFloat(document.getElementById('tankSize').value),
+                spray_volume_l_per_acre: parseFloat(document.getElementById('sprayVolume').value),
+                area_acre: parseFloat(document.getElementById('areaAcre').value)
+            };
+
+            if (!payload.rate) {
+                alert('कृपया डोस प्रमाण भरा');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/calc/dose', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    const r = data.data.results;
+                    let html = '';
+
+                    if (r.per_liter) {
+                        html += `
+                            <div class="result-item">
+                                <div class="value">${r.per_liter.amount} ${r.per_liter.unit}</div>
+                                <div class="label">प्रति लिटर पाणी</div>
+                            </div>
+                        `;
+                    }
+
+                    if (r.per_tank) {
+                        html += `
+                            <div class="result-item">
+                                <div class="value">${r.per_tank.amount} ${r.per_tank.unit}</div>
+                                <div class="label">प्रति टाकी (${payload.tank_size_l}L)</div>
+                            </div>
+                        `;
+                    }
+
+                    if (r.per_acre) {
+                        html += `
+                            <div class="result-item">
+                                <div class="value">${r.per_acre.amount} ${r.per_acre.unit}</div>
+                                <div class="label">प्रति एकर</div>
+                            </div>
+                        `;
+                    }
+
+                    if (r.area_total) {
+                        html += `
+                            <div class="result-item">
+                                <div class="value">${r.area_total.amount} ${r.area_total.unit}</div>
+                                <div class="label">एकूण (${r.area_total.area_acre} एकरसाठी)</div>
+                            </div>
+                        `;
+                    }
+
+                    if (r.total_water_l) {
+                        html += `
+                            <div class="result-item">
+                                <div class="value">${r.total_water_l} L</div>
+                                <div class="label">एकूण पाणी</div>
+                            </div>
+                        `;
+                    }
+
+                    if (r.tanks_needed) {
+                        html += `
+                            <div class="result-item">
+                                <div class="value">${Math.ceil(r.tanks_needed)}</div>
+                                <div class="label">टाकी संख्या</div>
+                            </div>
+                        `;
+                    }
+
+                    document.getElementById('resultGrid').innerHTML = html;
+                    document.getElementById('calcResult').classList.add('active');
+                } else {
+                    alert('त्रुटी: ' + data.error);
+                }
+            } catch (error) {
+                alert('गणनेत समस्या. कृपया पुन्हा प्रयत्न करा.');
+            }
+        }
+
+        // Preload schemes when page loads (optional, for faster display)
+        // setTimeout(loadSchemes, 2000);
+    </script>
 </body>
 </html>

@@ -1,12 +1,12 @@
 # app.py
-# KrishiGPT - Flask Web Application with WhatsApp Integration + Metrics + Secure API + Dosage Calculator
+# KrishiGPT - Flask Web Application with WhatsApp Integration + Metrics + Secure API + Dosage Calculator + Schemes
 
 import os
 import uuid
 import time
 import math
 import logging
-import json   # NEW
+import json
 import redis
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify, render_template, abort
@@ -16,8 +16,7 @@ from twilio.rest import Client as TwilioClient
 from twilio.request_validator import RequestValidator
 from voice_handler import process_voice_message
 from image_handler import process_crop_image 
-from schemes_data import get_scheme_by_name, get_all_schemes_summary, format_scheme_details
-
+from schemes_data import get_scheme_by_name, get_all_schemes_summary, format_scheme_details, GOVERNMENT_SCHEMES
 
 # Rate limiting
 from flask_limiter import Limiter
@@ -73,7 +72,8 @@ def _metrics_snapshot():
     keys = [
         "chat_requests", "chat_success", "chat_errors",
         "wa_inbound", "wa_success", "wa_errors",
-        "calc_requests", "calc_success", "calc_errors"
+        "calc_requests", "calc_success", "calc_errors",
+        "schemes_requests"
     ]
     return {k: _metrics_get(k) for k in keys}
 
@@ -410,7 +410,99 @@ def calc_dose_secure():
         _metrics_inc("calc_errors")
         return jsonify({"success": False, "error": str(e)}), 500
 
-# ---------- Quick info & Notebook & WhatsApp ----------
+# ---------- Government Schemes API ----------
+
+@app.route("/api/schemes", methods=["GET"])
+def get_schemes_list():
+    """Get list of all government schemes"""
+    _metrics_inc("schemes_requests")
+    try:
+        schemes_list = []
+        for key, scheme in GOVERNMENT_SCHEMES.items():
+            schemes_list.append({
+                "id": key,
+                "name": scheme["name"],
+                "short_name": scheme["short_name"],
+                "benefit": scheme["benefit"],
+                "helpline": scheme.get("helpline", "1551"),
+                "website": scheme.get("website", "")
+            })
+        
+        return jsonify({
+            "success": True,
+            "count": len(schemes_list),
+            "schemes": schemes_list
+        })
+    except Exception as e:
+        logger.exception("Error in /api/schemes")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/schemes/<scheme_id>", methods=["GET"])
+def get_scheme_details(scheme_id):
+    """Get detailed information about a specific scheme"""
+    _metrics_inc("schemes_requests")
+    try:
+        if scheme_id not in GOVERNMENT_SCHEMES:
+            return jsonify({"success": False, "error": "Scheme not found"}), 404
+        
+        scheme = GOVERNMENT_SCHEMES[scheme_id]
+        
+        return jsonify({
+            "success": True,
+            "scheme": scheme
+        })
+    except Exception as e:
+        logger.exception("Error in /api/schemes/<id>")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/schemes/search", methods=["GET"])
+def search_schemes():
+    """Search schemes by query"""
+    _metrics_inc("schemes_requests")
+    try:
+        query = request.args.get("q", "").strip()
+        
+        if not query:
+            return jsonify({"success": False, "error": "Query parameter 'q' is required"}), 400
+        
+        # Try exact match first
+        scheme = get_scheme_by_name(query)
+        
+        if scheme:
+            return jsonify({
+                "success": True,
+                "found": True,
+                "scheme": scheme
+            })
+        
+        # Partial search in all schemes
+        results = []
+        query_lower = query.lower()
+        
+        for key, scheme in GOVERNMENT_SCHEMES.items():
+            if (query_lower in scheme["name"].lower() or 
+                query_lower in scheme["short_name"].lower() or
+                query_lower in scheme["benefit"].lower()):
+                results.append({
+                    "id": key,
+                    "name": scheme["name"],
+                    "short_name": scheme["short_name"],
+                    "benefit": scheme["benefit"]
+                })
+        
+        return jsonify({
+            "success": True,
+            "found": len(results) > 0,
+            "count": len(results),
+            "results": results
+        })
+    except Exception as e:
+        logger.exception("Error in /api/schemes/search")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+# ---------- Quick info & Notebook ----------
 
 @app.route("/api/clear-history", methods=["POST"])
 def clear_history():
@@ -467,7 +559,7 @@ def notebook_view():
         logger.exception("Error in /notebook")
         return jsonify({"success": False, "error": str(e)}), 500
 
-# Not rate-limited to avoid Twilio retry loops.
+# ---------- WhatsApp Webhook ----------
 @app.route("/whatsapp/webhook", methods=["GET", "POST"])
 def whatsapp_webhook():
     if request.method == "GET":
@@ -483,10 +575,10 @@ def whatsapp_webhook():
     try:
         incoming_msg = (request.values.get("Body") or "").strip()
         sender = request.values.get("From", "")  # whatsapp:+919876543210
-        sender_name = request.values.get("ProfileName", "किसान")
+        sender_name = request.values.get("ProfileName", "शेतकरी")
         sender_short = sender.replace("whatsapp:", "")[-10:] if sender else "Unknown"
         
-        # NEW: Check for media (voice notes, images)
+        # Check for media (voice notes, images)
         num_media = int(request.values.get("NumMedia", 0))
 
         logger.info(f"📱 WhatsApp from {sender_short}: msg='{incoming_msg[:50]}...' media={num_media}")
@@ -495,11 +587,11 @@ def whatsapp_webhook():
         msg = resp.message()
 
         if not krishigpt or not getattr(krishigpt, "ai_ready", True):
-            msg.body("❌ सर्वर में तकनीकी समस्या है। कृपया 5 मिनट बाद प्रयास करें।\n\n📞 किसान हेल्पलाइन: 1551")
+            msg.body("❌ सर्व्हरमध्ये तांत्रिक समस्या आहे. कृपया 5 मिनिटांनी पुन्हा प्रयत्न करा.\n\n📞 शेतकरी हेल्पलाइन: 1551")
             _metrics_inc("wa_errors")
             return str(resp), 200, {"Content-Type": "application/xml"}
 
-        # ========== NEW: VOICE MESSAGE HANDLING ==========
+        # ========== VOICE MESSAGE HANDLING ==========
         if num_media > 0:
             media_type = request.values.get("MediaContentType0", "")
             media_url = request.values.get("MediaUrl0", "")
@@ -511,49 +603,42 @@ def whatsapp_webhook():
                 logger.info("🎤 Processing voice message...")
                 
                 try:
-                    # Get Twilio credentials
                     account_sid = os.getenv("TWILIO_ACCOUNT_SID")
                     auth_token = os.getenv("TWILIO_AUTH_TOKEN")
                     
                     if not account_sid or not auth_token:
-                        msg.body("❌ Voice processing not configured. कृपया टेक्स्ट में लिखें।")
+                        msg.body("❌ व्हॉइस प्रोसेसिंग कॉन्फिगर नाही. कृपया टेक्स्टमध्ये लिहा.")
                         _metrics_inc("wa_errors")
                         return str(resp), 200, {"Content-Type": "application/xml"}
                     
-                    # Process voice message
                     voice_result = process_voice_message(media_url, account_sid, auth_token)
                     
                     if voice_result["success"] and voice_result["text"]:
                         transcribed_text = voice_result["text"]
                         logger.info(f"🎤 Transcribed: {transcribed_text[:100]}...")
-                        
-                        # Use transcribed text as the query
                         incoming_msg = transcribed_text
-                        
-                        # Send acknowledgment with transcription
-                        # (We'll include this in the final response)
                         
                     else:
                         error_msg = voice_result.get("error", "Unknown error")
                         logger.warning(f"🎤 Transcription failed: {error_msg}")
-                        msg.body(f"""❌ आवाज़ समझ नहीं आई। 
+                        msg.body(f"""❌ आवाज समजला नाही.
 
 कृपया:
-• धीरे और साफ़ बोलें
-• शोर से दूर रहकर बोलें
-• या टेक्स्ट में लिखें
+• हळू आणि स्पष्ट बोला
+• शांत ठिकाणी बोला
+• किंवा टेक्स्टमध्ये लिहा
 
-🔄 फिर से कोशिश करें!""")
+🔄 पुन्हा प्रयत्न करा!""")
                         _metrics_inc("wa_errors")
                         return str(resp), 200, {"Content-Type": "application/xml"}
                         
                 except Exception as e:
                     logger.exception("Voice processing error")
-                    msg.body("❌ आवाज़ प्रोसेस करने में समस्या हुई। कृपया टेक्स्ट में लिखें।\n\n📞 किसान हेल्पलाइन: 1551")
+                    msg.body("❌ आवाज प्रोसेस करताना समस्या आली. कृपया टेक्स्टमध्ये लिहा.\n\n📞 शेतकरी हेल्पलाइन: 1551")
                     _metrics_inc("wa_errors")
                     return str(resp), 200, {"Content-Type": "application/xml"}
             
-            # Handle IMAGES (future feature - placeholder)
+            # Handle IMAGES - Crop Disease Diagnosis
             elif "image" in media_type.lower():
                 logger.info("📷 Processing crop image...")
                 
@@ -562,38 +647,35 @@ def whatsapp_webhook():
                     auth_token = os.getenv("TWILIO_AUTH_TOKEN")
                     
                     if not account_sid or not auth_token:
-                        msg.body("❌ Image processing not configured. कृपया समस्या टेक्स्ट में लिखें।")
+                        msg.body("❌ इमेज प्रोसेसिंग कॉन्फिगर नाही. कृपया समस्या टेक्स्टमध्ये लिहा.")
                         _metrics_inc("wa_errors")
                         return str(resp), 200, {"Content-Type": "application/xml"}
                     
-                    # Check if Gemini API is configured
                     if not os.getenv("GEMINI_API_KEY"):
-                        msg.body("""📷 फोटो मिला! 
+                        msg.body("""📷 फोटो मिळाला!
 
-🔜 फोटो से बीमारी पहचान जल्द आ रही है।
+🔜 फोटोवरून रोग ओळख लवकरच येत आहे.
 
-अभी के लिए, अपनी समस्या टेक्स्ट में लिखें:
-उदाहरण: "टमाटर के पत्ते पीले हैं और धब्बे हैं" """)
+आत्तासाठी, तुमची समस्या टेक्स्टमध्ये लिहा:
+उदाहरण: "टोमॅटोची पाने पिवळी पडत आहेत आणि डाग आहेत" """)
                         _metrics_inc("wa_success")
                         return str(resp), 200, {"Content-Type": "application/xml"}
                     
-                    # Process image
                     image_result = process_crop_image(media_url, account_sid, auth_token)
                     
                     if image_result["success"] and image_result["diagnosis"]:
                         diagnosis = image_result["diagnosis"]
                         
-                        # Truncate if too long
                         if len(diagnosis) > 1400:
-                            diagnosis = diagnosis[:1350] + "\n\n... (विस्तृत जानकारी के लिए वेबसाइट देखें)"
+                            diagnosis = diagnosis[:1350] + "\n\n... (अधिक माहितीसाठी वेबसाइट पहा)"
                         
                         response_text = f"""📷 *फोटो विश्लेषण:*
 
 {diagnosis}
 
 ---
-⚠️ यह AI आधारित सलाह है। गंभीर समस्या में नजदीकी KVK से संपर्क करें।
-📞 किसान हेल्पलाइन: 1551"""
+⚠️ ही AI आधारित सल्ला आहे. गंभीर समस्येत जवळच्या KVK शी संपर्क करा.
+📞 शेतकरी हेल्पलाइन: 1551"""
                         
                         msg.body(response_text)
                         logger.info(f"✅ Image diagnosis sent to {sender_short}")
@@ -602,78 +684,78 @@ def whatsapp_webhook():
                     else:
                         error_msg = image_result.get("error", "Unknown error")
                         logger.warning(f"📷 Image analysis failed: {error_msg}")
-                        msg.body("""❌ फोटो का विश्लेषण नहीं हो सका।
+                        msg.body("""❌ फोटोचे विश्लेषण होऊ शकले नाही.
 
 कृपया:
-• साफ और करीब से फोटो लें
-• पत्तों/प्रभावित भाग की फोटो भेजें
-• अच्छी रोशनी में फोटो लें
+• स्पष्ट आणि जवळून फोटो काढा
+• पाने/प्रभावित भागाचा फोटो पाठवा
+• चांगल्या प्रकाशात फोटो काढा
 
-🔄 फिर से कोशिश करें!""")
+🔄 पुन्हा प्रयत्न करा!""")
                         _metrics_inc("wa_errors")
                     
                     return str(resp), 200, {"Content-Type": "application/xml"}
                     
                 except Exception as e:
                     logger.exception("Image processing error")
-                    msg.body("❌ फोटो प्रोसेस करने में समस्या हुई। कृपया टेक्स्ट में समस्या बताएं।\n\n📞 किसान हेल्पलाइन: 1551")
+                    msg.body("❌ फोटो प्रोसेस करताना समस्या आली. कृपया टेक्स्टमध्ये समस्या सांगा.\n\n📞 शेतकरी हेल्पलाइन: 1551")
                     _metrics_inc("wa_errors")
                     return str(resp), 200, {"Content-Type": "application/xml"}
             
-            # Handle other media types
             else:
-                msg.body("🙏 कृपया टेक्स्ट, आवाज़ (🎤) या फोटो भेजें।")
+                msg.body("🙏 कृपया टेक्स्ट, आवाज (🎤) किंवा फोटो पाठवा.")
                 _metrics_inc("wa_success")
                 return str(resp), 200, {"Content-Type": "application/xml"}
-        # ========== END VOICE HANDLING ==========
+        # ========== END MEDIA HANDLING ==========
 
         lower = incoming_msg.lower()
 
-        # Welcome messages
-        if lower in ["hi", "hello", "start", "शुरू", "नमस्कार", "हेलो", "हाय", "menu", "help", "मदद"]:
-            welcome = f"""🌾 KrishiGPT में आपका स्वागत है, {sender_name}! 🙏
+        # Welcome messages (Marathi + Hindi + English)
+        if lower in ["hi", "hello", "start", "शुरू", "सुरू", "नमस्कार", "हेलो", "हाय", "menu", "help", "मदत", "मदद"]:
+            welcome = f"""🌾 KrishiGPT मध्ये आपले स्वागत आहे, {sender_name}! 🙏
 
-मैं आपका AI कृषि सलाहकार हूं। मुझसे पूछें:
-• 🐛 फसल की बीमारी और इलाज
-• 💊 खाद-उर्वरक की जानकारी
-• 🏛️ सरकारी योजनाएं
-• 🦗 कीट नियंत्रण
+मी तुमचा AI कृषी सल्लागार आहे. मला विचारा:
+• 🐛 पिकावरील रोग आणि उपचार
+• 💊 खत-कीटकनाशकांची माहिती
+• 🏛️ शासकीय योजना
+• 🦗 कीड नियंत्रण
 
-*कैसे पूछें:*
-✍️ टाइप करें - हिंदी या मराठी में
-🎤 आवाज़ में बोलें - Voice note भेजें!
-📷 फोटो भेजें - (जल्द उपलब्ध)
+*कसे विचाराल:*
+✍️ टाइप करा - मराठी किंवा हिंदीत
+🎤 आवाजात बोला - Voice note पाठवा!
+📷 फोटो पाठवा - पिकाचा रोग ओळखा!
 
-उदाहरण: "कपास में गुलाबी सुंडी का इलाज"
+उदाहरण: "कापसावर गुलाबी बोंडअळीचा उपाय"
 
-🔄 रीसेट: "नया" लिखें
-💬 अब अपना सवाल पूछें! 👇"""
+🔄 रीसेट: "नवीन" लिहा
+💬 आता तुमचा प्रश्न विचारा! 👇"""
             msg.body(welcome)
             _metrics_inc("wa_success")
             return str(resp), 200, {"Content-Type": "application/xml"}
 
         # Reset/clear history
-        if lower in ["clear", "reset", "नया", "नवीन", "new"]:
+        if lower in ["clear", "reset", "नवीन", "नया", "new"]:
             krishigpt.clear_history(sender)
-            msg.body("✅ बातचीत का इतिहास साफ हो गया।\n\n🔄 अब नया सवाल पूछें!\n\n💡 Tip: आप आवाज़ में भी सवाल पूछ सकते हैं 🎤")
+            msg.body("✅ संवादाचा इतिहास साफ झाला.\n\n🔄 आता नवीन प्रश्न विचारा!\n\n💡 टीप: तुम्ही आवाजातही प्रश्न विचारू शकता 🎤")
             _metrics_inc("wa_success")
             return str(resp), 200, {"Content-Type": "application/xml"}
 
         # Helpline info
         if lower in ["helpline", "हेल्पलाइन", "फोन", "contact", "संपर्क"]:
-            helpline = """📞 महत्वपूर्ण हेल्पलाइन:
+            helpline = """📞 महत्त्वाचे हेल्पलाइन:
 
-🌾 किसान कॉल सेंटर: 1551 (टोल फ्री)
+🌾 शेतकरी कॉल सेंटर: 1551 (टोल फ्री)
 📱 PM-KISAN हेल्पलाइन: 155261
-🔬 नजदीकी KVK: kvk.icar.gov.in
+🔬 जवळचे KVK: kvk.icar.gov.in
+🏛️ महाडीबीटी: 1800-120-8040
 
-किसी भी समस्या के लिए 1551 पर कॉल करें।"""
+कोणत्याही समस्येसाठी 1551 वर कॉल करा."""
             msg.body(helpline)
             _metrics_inc("wa_success")
             return str(resp), 200, {"Content-Type": "application/xml"}
 
-        # Schemes info
-        if lower in ["योजना", "scheme", "schemes", "योजनाएं", "yojana", "सरकारी योजना"]:
+        # Schemes info - Enhanced
+        if lower in ["योजना", "scheme", "schemes", "योजनाएं", "yojana", "शासकीय योजना", "सरकारी योजना"]:
             scheme_msg = get_all_schemes_summary()
             msg.body(scheme_msg)
             _metrics_inc("wa_success")
@@ -685,40 +767,37 @@ def whatsapp_webhook():
             scheme_details = format_scheme_details(scheme)
             if len(scheme_details) > 1500:
                 scheme_details = scheme_details[:1450] + "\n\n..."
-            scheme_details += "\n\n---\n📞 किसान हेल्पलाइन: 1551"
+            scheme_details += "\n\n---\n📞 शेतकरी हेल्पलाइन: 1551"
             msg.body(scheme_details)
             _metrics_inc("wa_success")
             return str(resp), 200, {"Content-Type": "application/xml"}
+
         # Empty message
         if not incoming_msg:
-            msg.body("""🤔 कोई सवाल नहीं मिला।
+            msg.body("""🤔 कोणताही प्रश्न मिळाला नाही.
 
-अपना सवाल:
-✍️ टाइप करें, या
-🎤 आवाज़ में बोलकर भेजें!
+तुमचा प्रश्न:
+✍️ टाइप करा, किंवा
+🎤 आवाजात बोलून पाठवा!
 
-उदाहरण: "टमाटर में पत्ते पीले हो रहे हैं" """)
+उदाहरण: "टोमॅटोची पाने पिवळी पडत आहेत" """)
             _metrics_inc("wa_success")
             return str(resp), 200, {"Content-Type": "application/xml"}
 
         # ========== AI Response ==========
         logger.info("🤖 Generating AI response…")
         
-        # Check if this was a voice message (for response formatting)
         was_voice = num_media > 0 and "audio" in request.values.get("MediaContentType0", "").lower()
         
         ai_response = krishigpt.get_response(sender, incoming_msg)
         
-        # Truncate if too long for WhatsApp
         if len(ai_response) > 1400:
-            ai_response = ai_response[:1350] + "\n\n... (अधिक जानकारी के लिए वेबसाइट देखें)"
+            ai_response = ai_response[:1350] + "\n\n... (अधिक माहितीसाठी वेबसाइट पहा)"
         
-        # Add voice acknowledgment if it was a voice message
         if was_voice:
-            ai_response = f"🎤 *आपने पूछा:* \"{incoming_msg[:100]}{'...' if len(incoming_msg) > 100 else ''}\"\n\n{ai_response}"
+            ai_response = f"🎤 *तुम्ही विचारले:* \"{incoming_msg[:100]}{'...' if len(incoming_msg) > 100 else ''}\"\n\n{ai_response}"
         
-        # Add footer
-        ai_response += "\n\n---\n📞 किसान हेल्पलाइन: 1551"
+        ai_response += "\n\n---\n📞 शेतकरी हेल्पलाइन: 1551"
 
         msg.body(ai_response)
         logger.info(f"✅ Response sent to {sender_short}")
@@ -728,6 +807,53 @@ def whatsapp_webhook():
     except Exception as e:
         logger.exception("❌ WhatsApp webhook error")
         resp = MessagingResponse()
-        resp.message("❌ माफ करें, तकनीकी समस्या है। कृपया थोड़ी देर बाद प्रयास करें।\n\n📞 किसान हेल्पलाइन: 1551")
+        resp.message("❌ माफ करा, तांत्रिक समस्या आहे. कृपया थोड्या वेळाने पुन्हा प्रयत्न करा.\n\n📞 शेतकरी हेल्पलाइन: 1551")
         _metrics_inc("wa_errors")
         return str(resp), 200, {"Content-Type": "application/xml"}
+
+# ---------- Docs ----------
+@app.errorhandler(404)
+def not_found(e):
+    return jsonify({"success": False, "error": "Not found"}), 404
+
+
+@app.errorhandler(500)
+def server_error(e):
+    return jsonify({"success": False, "error": "Server error"}), 500
+
+
+@app.route("/api/docs")
+def api_docs():
+    return jsonify({
+        "service": "KrishiGPT API",
+        "version": os.getenv("APP_VERSION", "1.0.0"),
+        "endpoints": {
+            "GET /": "Web chat interface",
+            "GET /health": "Health check",
+            "GET /healthz": "Health check alias",
+            "GET /metrics": "Usage counters (protected by METRICS_TOKEN if set)",
+            "POST /api/chat": "Web chat API { message, user_id?, crop?, sowing_date? }",
+            "POST /api/chat-secure": "Secure chat API (X-API-Key required if API_SECRET is set)",
+            "POST /api/calc/dose": "Dosage calculator (open)",
+            "POST /api/calc/dose-secure": "Dosage calculator (X-API-Key required if API_SECRET is set)",
+            "POST /api/clear-history": "Clear chat history",
+            "GET /api/quick-info/<topic>": "Quick info",
+            "GET /notebook?id=...": "Notebook view (JSON events by farmer/crop_note)",
+            "GET /api/schemes": "Get list of all government schemes",
+            "GET /api/schemes/<scheme_id>": "Get detailed information about a specific scheme",
+            "GET /api/schemes/search?q=...": "Search schemes by query",
+            "POST /whatsapp/webhook": "Twilio WhatsApp webhook"
+        }
+    })
+
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    print("=" * 60)
+    print(f"🚀 KrishiGPT Server running on http://localhost:{port}")
+    print(f"📱 Web Interface: http://127.0.0.1:{port}")
+    print(f"📚 API Docs: http://127.0.0.1:{port}/api/docs")
+    print(f"🏛️ Schemes API: http://127.0.0.1:{port}/api/schemes")
+    print(f"💬 WhatsApp Webhook: http://127.0.0.1:{port}/whatsapp/webhook")
+    print("=" * 60)
+    app.run(host="0.0.0.0", port=port, debug=True)
