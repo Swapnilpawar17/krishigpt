@@ -16,6 +16,7 @@ from twilio.rest import Client as TwilioClient
 from twilio.request_validator import RequestValidator
 from voice_handler import process_voice_message
 from image_handler import process_crop_image 
+from schemes_data import get_scheme_by_name, get_all_schemes_summary, format_scheme_details
 
 
 # Rate limiting
@@ -672,18 +673,22 @@ def whatsapp_webhook():
             return str(resp), 200, {"Content-Type": "application/xml"}
 
         # Schemes info
-        if lower in ["योजना", "scheme", "schemes", "योजनाएं", "yojana"]:
-            scheme_msg = """📋 प्रमुख सरकारी योजनाएं:
-
-1️⃣ PM-KISAN — ₹6,000/वर्ष
-2️⃣ PMFBY — फसल बीमा
-3️⃣ KCC — सस्ती ऋण सुविधा
-
-किसी योजना का नाम लिखें विस्तृत जानकारी के लिए।"""
+        if lower in ["योजना", "scheme", "schemes", "योजनाएं", "yojana", "सरकारी योजना"]:
+            scheme_msg = get_all_schemes_summary()
             msg.body(scheme_msg)
             _metrics_inc("wa_success")
             return str(resp), 200, {"Content-Type": "application/xml"}
-
+        
+        # Check if asking about specific scheme
+        scheme = get_scheme_by_name(incoming_msg)
+        if scheme:
+            scheme_details = format_scheme_details(scheme)
+            if len(scheme_details) > 1500:
+                scheme_details = scheme_details[:1450] + "\n\n..."
+            scheme_details += "\n\n---\n📞 किसान हेल्पलाइन: 1551"
+            msg.body(scheme_details)
+            _metrics_inc("wa_success")
+            return str(resp), 200, {"Content-Type": "application/xml"}
         # Empty message
         if not incoming_msg:
             msg.body("""🤔 कोई सवाल नहीं मिला।
