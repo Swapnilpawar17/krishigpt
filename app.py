@@ -847,13 +847,16 @@ def api_docs():
     })
 
 
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
+# For local development
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    
     print("=" * 60)
     print(f"🚀 KrishiGPT Server running on http://localhost:{port}")
     print(f"📱 Web Interface: http://127.0.0.1:{port}")
-    print(f"📚 API Docs: http://127.0.0.1:{port}/api/docs")
-    print(f"🏛️ Schemes API: http://127.0.0.1:{port}/api/schemes")
-    print(f"💬 WhatsApp Webhook: http://127.0.0.1:{port}/whatsapp/webhook")
     print("=" * 60)
-    app.run(host="0.0.0.0", port=port, debug=True)
+    
+    app.run(host='0.0.0.0', port=port, debug=True)
+
+# For Vercel serverless deployment
+app = app

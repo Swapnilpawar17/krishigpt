@@ -1,115 +1,116 @@
-# KrishiGPT Demo Script (Web + WhatsApp)
+# KrishiGPT Demo Script (Web + WhatsApp, English)
 
 ## 1. Intro (20–30 seconds)
 
-"Hi, मेरा नाम ___ है।  
-मैंने KrishiGPT बनाया है – यह भारतीय किसानों के लिए AI आधारित कृषि सलाहकार है।
+“Hi, my name is Swapnil Pawar.  
+I’ve built KrishiGPT – an AI-powered agronomy assistant for Indian farmers.
 
-यह:
-- हिंदी और मराठी में जवाब देता है  
-- प्रमुख फसलों पर रोग, कीट, खाद, सिंचाई और सरकारी योजनाओं की जानकारी देता है  
-- वेब और WhatsApp, दोनों पर चलता है  
-- और डोज़ कैलकुलेटर से स्प्रे की मात्रा सही निकालने में मदद करता है।  
+It:
+- Answers in Indian languages (currently Hindi/Marathi)  
+- Covers major crops and topics: diseases, pests, fertilizers, irrigation, and government schemes  
+- Works on both web and WhatsApp  
+- Has a built-in dosage calculator to avoid spray mistakes.  
 
-मैं अभी एक छोटा demo दिखाऊँगा – पहले web version, फिर WhatsApp, और फिर dosage calculator।"
-  
----
-
-## 2. Web Demo (1–1.5 मिनट)
-
-### 2.1 पहला सवाल – कपास में गुलाबी सुंडी
-
-बोलते समय ये steps करें:
-
-1. Browser में web app खोलें (https://krishigpt-XXXX.onrender.com)
-2. Chat box में type करें:  
-   **"कपास में गुलाबी सुंडी का प्रबंधन बताओ"**
-3. जैसे ही जवाब आए, बोलें:
-
-"यहाँ KrishiGPT cotton में गुलाबी सुंडी के लिए IPM‑first सलाह दे रहा है:
-- पहले फेरोमोन ट्रैप, निगरानी और खेत से गिरे हुए बॉल हटाने की बात करता है  
-- उसके बाद 1–2 लेबल‑अनुसार कीटनाशक, उनकी मात्रा, पानी और सावधानियाँ  
-- आख़िर में छोटा disclaimer भी देता है कि local label और KVK से पुष्टि करें।"
-
-### 2.2 दूसरा सवाल – टमाटर में पत्ते पीले
-
-1. दूसरा सवाल type करें:  
-   **"टमाटर की पत्तियां पीली हो रही हैं, क्या करूं?"**
-2. बोलें:
-
-"यहाँ ये अलग‑अलग कारण बता रहा है –  
-- पोषक तत्व की कमी, जलभराव, pH या virus  
-- और फिर पहले non‑chemical उपाय और बाद में foliar spray options देता है।"
+I’ll show a short demo now – first the web version, then WhatsApp, and then the dosage calculator.”
 
 ---
 
-## 3. Dosage Calculator Demo (1 मिनट)
+## 2. Web Demo (1–1.5 minutes)
 
-### 3.1 Modal खोलना
+### 2.1 First question – Cotton pink bollworm
 
-1. ऊपर का **🧮 Dosage Calculator** button क्लिक करें।
-2. बोलें:
+While you do the clicks, say:
 
-"अक्सर किसानों से सवाल आता है – 0.5 ml/L दर है, तो 15 L पंप या 200 L टैंक के लिए कितनी दवा लगेगी?  
-KrishiGPT के अंदर ही dosage calculator है।"
+1. Open the web app in the browser (e.g., https://krishigpt-XXXX.onrender.com).
+2. In the chat box, type:  
+   **“How to manage pink bollworm in cotton?”**  
+   (or your Hindi version if you prefer.)
+3. When the answer appears, say:
+
+“Here KrishiGPT is giving IPM‑first advice for pink bollworm in cotton:
+- It first talks about pheromone traps, field sanitation, and timely picking  
+- Then it suggests 1–2 label-approved insecticides with dosage, water volume and precautions  
+- And at the end it adds a short disclaimer to check local labels and confirm with KVK/agriculture officers.”
+
+### 2.2 Second question – Yellowing in tomato
+
+1. Type a second question:  
+   **“Tomato leaves are turning yellow, what should I do?”**
+2. Say:
+
+“Here it explains multiple possible causes:
+- Nutrient deficiencies, waterlogging, soil pH or viral problems  
+- Then it suggests non-chemical and management steps first, followed by foliar nutrition options with clear rates.”
+
+---
+
+## 3. Dosage Calculator Demo (1 minute)
+
+### 3.1 Open the modal
+
+1. Click the **🧮 Dosage Calculator** button at the top.
+2. Say:
+
+“Often farmers or field staff ask: if the label says 0.5 ml per liter, how much product do we need for a 15 L knapsack or a 200 L tank for 1 acre?  
+KrishiGPT has an in-built dosage calculator for that.”
 
 ### 3.2 Example calculation
 
-1. फ़ील्ड भरें:
+1. Fill the fields:
    - Unit: **ml per liter (ml/L)**  
    - Rate: **0.5**  
    - Tank size: **15**  
    - Spray volume (L/acre): **200**  
    - Area: **1**  
-2. **Calculate (गणना करें)** पर क्लिक करें।  
-3. बोलें:
+2. Click **Calculate**.  
+3. Say:
 
-"अब यह बता रहा है:
+“Now it shows:
 - Per liter: 0.5 ml  
-- 15 L पंप के लिए करीब 7.5 ml  
-- 1 एकड़ के लिए total ~100 ml product और 200 L पानी  
-- और कितने tanks लगेंगे, वो भी।  
+- For a 15 L pump: about 7.5 ml  
+- For 1 acre: about 100 ml of product and 200 L of water  
+- And how many tanks you need in total.  
 
-Farmer या field staff ये values सीधे WhatsApp message में copy कर सकते हैं और human agronomist cross‑check कर सकता है।"
+A farmer or field staff can copy these values directly into WhatsApp, and a human agronomist can still cross-check against the label.”
 
 ---
 
-## 4. WhatsApp Demo (1 मिनट)
+## 4. WhatsApp Demo (1 minute)
 
 ### 4.1 Welcome flow
 
-1. अपने फ़ोन से Twilio WhatsApp number पर **"hi"** भेजें।  
-2. स्क्रीन share करते हुए बोलें:
+1. From your phone, send **“hi”** to your Twilio WhatsApp number.  
+2. While screen sharing, say:
 
-"यह WhatsApp version है।  
-Farmer सिर्फ 'hi' भेजता है और उसे welcome message मिलता है, जिसमें बताया जाता है कि वो क्या‑क्या पूछ सकता है।"
+“This is the WhatsApp version.  
+The farmer just sends ‘hi’ and gets a welcome message explaining what they can ask.”
 
 ### 4.2 Real question + reset
 
-1. अब message भेजें:  
-   **"कपास में गुलाबी सुंडी का इलाज"**  
-2. जैसे ही reply आए, बोलें:
+1. Now send a question, for example:  
+   **“How to control pink bollworm in cotton?”**  
+2. When the reply comes, say:
 
-"यहाँ farmer को वही IPM‑first + मात्रा + सावधानी वाला जवाब WhatsApp पर मिल रहा है।"
+“Here the farmer gets the same IPM‑first + dosage + safety‑focused answer directly on WhatsApp.”
 
-3. फिर message भेजें:  
-   **"नया"**  
-4. बोलें:
+3. Then send:  
+   **“new”** (or your chosen reset keyword, like "नया").  
+4. Say:
 
-"'नया' लिखने पर conversation history reset हो जाती है – ताकि अगला सवाल नई case की तरह handle हो।"
+“Typing ‘new’ resets the conversation history so the next question is treated as a fresh case.”
 
 ---
 
-## 5. Closing (20–30 सेकंड)
+## 5. Closing (20–30 seconds)
 
-"तो यह था KrishiGPT का छोटा demo:
-- Hindi/Marathi में AI agronomy  
-- Web + WhatsApp  
-- और built‑in dosage calculator  
+“So that was a quick demo of KrishiGPT:
+- AI agronomy in local languages  
+- Available on web and WhatsApp  
+- With a built-in dosage calculator  
 
-मैं इसे 10–15 दिन के free pilot के लिए 2–3 retailers/FPOs/input companies के साथ चलाना चाहता हूँ, ताकि:
-- उनके farmer queries faster handle हों  
-- dosage mistakes कम हों  
-- और टीम को 24×7 सहायता मिल सके।  
+I’d like to run a 10–15 day free pilot with 2–3 retailers/FPOs/input companies to see if we can:
+- Handle farmer queries faster  
+- Reduce dosage mistakes  
+- And give their teams 24×7 support in local language.  
 
-अगर आपको ठीक लगे तो हम 15 मिनट का detailed demo अलग से schedule कर सकते हैं।"
+If this looks interesting, we can schedule a 15‑minute detailed demo.”
